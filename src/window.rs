@@ -157,8 +157,49 @@ pub fn initialize_tray(app: &App) {
 
 /// Create the main ZapZap application window (the human interface).
 /// Loads the local `ui/index.html` frontend: account list, settings, About.
+/// We serve the file directly (file://) instead of `WebviewUrl::App` so it
+/// works without a separate frontend build step.
 pub fn create_main_window(app: &AppHandle) -> tauri::Result<tauri::webview::WebviewWindow> {
-    let window = WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("index.html".into()))
+    let app_dir = app
+        .path()
+        .app_data_dir()
+        .unwrap_or_else(|_| std::env::temp_dir().join("zapdude"))
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| std::env::temp_dir().join("zapdude"));
+    // ui/index.html lives two levels up from the data dir:
+    //   %APPDATA%\app.zapzap.desktop\ -> ../zapdude-rs/ui/index.html
+    let html_path = app_dir.join("zapdude-rs").join("ui").join("index.html");
+    let url = if html_path.exists() {
+        format!("file://{}", html_path.display())
+    } else {
+        // Fallback: look next to the executable.
+        let exe_dir = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+            .unwrap_or_default();
+        let alt = exe_dir.join("ui").join("index.html");
+        if alt.exists() {
+            format!("file://{}", alt.display())
+        } else {
+            // Last resort: bundle App URL.
+            return WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("index.html".into()))
+                .title("ZapZap")
+                .inner_size(900.0_f64, 650.0_f64)
+                .min_inner_size(700.0_f64, 500.0_f64)
+                .resizable(true)
+                .build()
+                .map(|w| {
+                    // Since file:// fails, open WhatsApp Web directly so the
+                    // app is still usable (fallback mode).
+                    let _ = w.navigate("https://web.whatsapp.com".parse().unwrap());
+                    w
+                });
+        }
+    };
+    eprintln!("zapdude: main window loading URL: {}", url);
+    let url: url::Url = url.parse().expect("main window URL must parse");
+    let window = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url))
         .title("ZapZap")
         .inner_size(900.0_f64, 650.0_f64)
         .min_inner_size(700.0_f64, 500.0_f64)
