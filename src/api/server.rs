@@ -329,10 +329,10 @@ async fn post_config(
     if let Err(err) = state.settings.update_api(api.clone()) {
         return json_error(&ApiError::internal(err));
     }
+    // Siempre shutdown primero para que cambios de puerto surtan efecto inmediato.
+    shutdown_loopback_server();
     if api.enabled {
         start_loopback_server();
-    } else {
-        shutdown_loopback_server();
     }
     json_ok(json!({
         "enabled": api.enabled,
