@@ -6,6 +6,8 @@ description = "ZapZap (Rust) - WhatsApp Web desktop client with a local automati
 license = "AGPL-3.0-or-later"
 authors = ["ZapZap fork contributors"]
 
+
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

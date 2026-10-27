@@ -32,7 +32,7 @@ const BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreen
 const CLIENT_HINTS_FIX_SCRIPT: &str = include_str!("../scripts/client_hints_fix.js");
 const API_PAGE_BRIDGE_SCRIPT: &str = include_str!("../scripts/api_page_bridge.js");
 
-fn account_window_label(account_id: &str) -> String {
+pub fn account_window_label(account_id: &str) -> String {
     format!("account-{account_id}")
 }
 
@@ -59,36 +59,9 @@ fn permission_response(kind: PermissionKind) -> PermissionResponse {
     }
 }
 
-/// Open one WhatsApp Web window per enabled account (isolated profiles).
-pub fn create_account_windows(app: &App) -> tauri::Result<()> {
-    let shared = crate::SHARED
-        .get()
-        .expect("shared globals must exist before window creation")
-        .clone();
-    let accounts: Vec<_> = shared
-        .settings
-        .current_accounts()
-        .into_iter()
-        .filter(|account| account.enabled)
-        .collect();
-    let bus = crate::api::server::bus();
-    for (index, account) in accounts.iter().enumerate() {
-        let window = create_account_window(app, account, index == 0)?;
-        crate::api::page_ops::install(&account.id, window, bus.clone());
-    }
-    if accounts.is_empty() {
-        // Unreachable through the sanitizer, but never break: default account.
-        let fallback = create_account_window(app, &crate::config::AccountConfig::default(), true)?;
-        crate::api::page_ops::install("default", fallback, bus);
-    }
-    crate::api::server::start_loopback_server();
-    initialize_tray(app);
-    Ok(())
-}
-
 /// Build a single account window with its own WebView2 data directory.
 fn create_account_window(
-    app: &App,
+    app: &AppHandle,
     account: &crate::config::AccountConfig,
     visible: bool,
 ) -> tauri::Result<tauri::webview::WebviewWindow> {
@@ -131,7 +104,7 @@ fn create_account_window(
 
 /// Tray: the human interface for switching between account windows and
 /// closing the whole app (closing an account window just hides it).
-fn initialize_tray(app: &App) {
+pub fn initialize_tray(app: &App) {
     let build = move || -> tauri::Result<()> {
         let shared = crate::SHARED.get().expect("shared globals");
         let accounts = shared.settings.current_accounts();
@@ -180,6 +153,31 @@ fn initialize_tray(app: &App) {
     if let Err(failure) = build() {
         eprintln!("zapdude: tray could not initialize: {failure}");
     }
+}
+
+/// Create the main ZapZap application window (the human interface).
+/// Loads the local `ui/index.html` frontend: account list, settings, About.
+pub fn create_main_window(app: &AppHandle) -> tauri::Result<tauri::webview::WebviewWindow> {
+    let window = WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("index.html".into()))
+        .title("ZapZap")
+        .inner_size(900.0_f64, 650.0_f64)
+        .min_inner_size(700.0_f64, 500.0_f64)
+        .resizable(true)
+        .build()?;
+    Ok(window)
+}
+
+/// Create an account window and install its page bridge (polling + beacon).
+/// `visible` controls whether the WhatsApp Web window is shown immediately.
+pub fn create_account_with_bridge(
+    app: &AppHandle,
+    account: &crate::config::AccountConfig,
+    visible: bool,
+) -> tauri::Result<tauri::webview::WebviewWindow> {
+    let window = create_account_window(app, account, visible)?;
+    let bus = crate::api::server::bus();
+    crate::api::page_ops::install(&account.id, window.clone(), bus);
+    Ok(window)
 }
 
 /// Route tray menu clicks: show an account window, hide them all, or exit.
