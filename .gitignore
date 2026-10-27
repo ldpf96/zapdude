@@ -1,0 +1,6 @@
+/target/
+# CLI prebuild descargado (no es fuente)
+/tools/tauri.exe
+# Artefactos de empaquetado intermedios
+*.exe.stackdump
+Thumbs.db
