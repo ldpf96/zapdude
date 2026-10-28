@@ -447,6 +447,13 @@ async fn post_prefs(State(state): State<ApiState>, Json(body): Json<PrefsBody>) 
     if let Err(err) = autostart_result {
         eprintln!("zapdude: autostart registry update failed: {err}");
     }
+    // Re-apply the theme everywhere: rail + welcome reload with the fresh
+    // preference (the drawer applied it locally already). This is what
+    // keeps the shell UNIFORM — pages that only read prefs at load would
+    // otherwise mix light/dark after a toggle.
+    if let Some(app_handle) = crate::APP_HANDLE.get() {
+        crate::window::reload_shell_pages(app_handle);
+    }
     json_ok(json!({
         "theme": prefs.theme,
         "autostart": prefs.autostart,

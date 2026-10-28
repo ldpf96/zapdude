@@ -70,8 +70,44 @@ static ACTIVE: Mutex<Option<String>> = Mutex::new(None);
 /// Whether the options drawer is over the content area.
 static DRAWER_OPEN: Mutex<bool> = Mutex::new(false);
 
+/// Account webviews use ids, not labels, for their webview identity.
 pub fn account_webview_label(account_id: &str) -> String {
     format!("account-{account_id}")
+}
+
+/// Toggle the options screen (brand-logo click): a FULL-SCREEN panel over
+/// the content area with the API settings, agent docs and About — in the
+/// SAME window (no auxiliary window). Rebuilt on every open so it always
+/// renders on top and shows the current state.
+pub fn toggle_drawer(app: &AppHandle) -> tauri::Result<()> {
+    let open_now = DRAWER_OPEN.lock().map(|guard| *guard).unwrap_or(false);
+    let open = !open_now;
+    if let Ok(mut guard) = DRAWER_OPEN.lock() {
+        *guard = open;
+    }
+    if open {
+        let Some(window) = app.get_window("main") else {
+            return Ok(());
+        };
+        let content = content_size(&window)?;
+        let base = ui_base_url();
+        let url: url::Url = format!("{base}/drawer").parse().expect("drawer URL must parse");
+        // Rebuild from scratch: a webview created before an account would
+        // sit BELOW it in z-order and appear "gone" once that account
+        // covers the content area. Closing + re-adding always lands on top.
+        if let Some(existing) = app.get_webview("drawer") {
+            let _ = existing.close();
+        }
+        window.add_child(
+            WebviewBuilder::new("drawer", WebviewUrl::External(url)),
+            LogicalPosition::new(RAIL_WIDTH, 0.0_f64),
+            LogicalSize::new(content.width, content.height),
+        )?;
+    }
+    if let Some(window) = app.get_window("main") {
+        let _ = window.set_focus();
+    }
+    Ok(())
 }
 
 /// The label of the content webview currently shown (None = rail only).
@@ -514,37 +550,6 @@ pub fn open_account_webview(
     show_content(app, &account_webview_label(&account.id))
 }
 
-/// Toggle the options screen (brand-logo click): a FULL-SCREEN panel over
-/// the content area with the API settings, AI-agent docs and About — in the
-/// SAME window (no auxiliary window). Created lazily on first use so it
-/// stacks ABOVE the account webviews.
-pub fn toggle_drawer(app: &AppHandle) -> tauri::Result<()> {
-    let open_now = DRAWER_OPEN.lock().map(|guard| *guard).unwrap_or(false);
-    let open = !open_now;
-    if let Ok(mut guard) = DRAWER_OPEN.lock() {
-        *guard = open;
-    }
-    if open && app.get_webview("drawer").is_none() {
-        let Some(window) = app.get_window("main") else {
-            return Ok(());
-        };
-        let content = content_size(&window)?;
-        let base = ui_base_url();
-        let url: url::Url = format!("{base}/drawer").parse().expect("drawer URL must parse");
-        // Born covering the whole content area (the rail strip stays free).
-        window.add_child(
-            WebviewBuilder::new("drawer", WebviewUrl::External(url)),
-            LogicalPosition::new(RAIL_WIDTH, 0.0_f64),
-            LogicalSize::new(content.width, content.height),
-        )?;
-    }
-    if let Some(window) = app.get_window("main") {
-        relayout(&window);
-        let _ = window.set_focus();
-    }
-    Ok(())
-}
-
 /// After an account is hidden or removed: open the FIRST REMAINING account,
 /// or fall back to the branded welcome screen (which has an explicit
 /// "Agregar cuenta" button). Never auto-creates an empty account here —
@@ -577,15 +582,47 @@ pub fn hide_account_content(app: &AppHandle, _id: &str) -> tauri::Result<()> {
 /// Close an account webview entirely (used when removing the account).
 /// If the removed account was on screen, fall through to the first remaining
 /// account, or to the welcome screen when none remains (no empty account is
-/// auto-created — the user asked for that explicitly).
+/// auto-created — the user asked for that explicitly). The WebView2 profile
+/// of the account is ALSO deleted: removing an account means a clean slate
+/// (no orphaned sessions on disk).
 pub fn close_account_webview(app: &AppHandle, id: &str) {
     let label = account_webview_label(id);
     let was_active = active_content().as_deref() == Some(label.as_str());
     if let Some(webview) = app.get_webview(&label) {
         let _ = webview.close();
     }
+    // Best-effort profile wipe (ignores errors — e.g. WebView2 still
+    // flushing the folder).
+    if let Some(shared) = crate::SHARED.get() {
+        let profile = shared
+            .settings
+            .data_dir()
+            .join("webview")
+            .join(id);
+        let _ = std::fs::remove_dir_all(&profile);
+    }
     if was_active {
         open_first_remaining_or_welcome(app);
+    }
+}
+
+/// Navigate ONLY the rail + welcome webviews to the (possibly new) base
+/// URL. Used after preference changes (theme) so every shell page shows
+/// the same look instantly — no half-dark/half-light state.
+pub fn reload_shell_pages(app: &AppHandle) {
+    let base = ui_base_url();
+    let Some(window) = app.get_window("main") else {
+        return;
+    };
+    for webview in window.webviews() {
+        let target = match webview.label() {
+            "rail" => format!("{base}/"),
+            "welcome" => format!("{base}/welcome"),
+            _ => continue,
+        };
+        if let Ok(url) = target.parse::<url::Url>() {
+            let _ = webview.navigate(url);
+        }
     }
 }
 

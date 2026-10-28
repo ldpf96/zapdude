@@ -342,6 +342,32 @@ solo si TODOS los hijos quedan display:none computado, contenedores de ≤4 hijo
 - PowerShell+curl JSON: usar `--data-binary @file` o `{\"..\"}` escapado (las
   comillas simples con `{...}` se las come el parser nativo).
 
+## Round 6 (feedback 4: bughunt de tema/z-order/scroll, desinstalación virgen)
+
+- **El usuario DESINSTALÓ para tener versión virgen** → el hook NSIS borró
+  `%APPDATA%\app.zapzap.desktop` COMPLETO (config.json + perfiles webview —
+  el comportamiento pedido). Estado actual: SIN config; el próximo arranque
+  auto-crea "Cuenta 1" con QR. Ruta absoluta del instalado:
+  `C:\Users\PC\AppData\Local\Zapdude\zapdude.exe` (pedido: dejar la ruta
+  visible).
+- **TEMA MITAD/MITAD (franja blanca + franja oscura)**: causas — el welcome
+  (y el drawer) aplicaban el tema UNA vez al crearse; el welcome queda
+  PARQUEADO y jamás recarga → al mostrarse aparece con el tema viejo; el
+  drawer si se creaba antes que las cuentas quedaba debajo (z-order) y
+  encima con estado viejo. FIX: (1) post_prefs → `reload_shell_pages` re-
+  navega rail+welcome al instante (uniformidad); (2) `toggle_drawer` ahora
+  CIERRA+RECREA el drawer en cada apertura (siempre arriba + estado fresco);
+  (3) el rail ya re-chequeaba prefs cada 10s. Editar config.json a mano con
+  ConvertTo-Json -Depth 5 (¡el hash serializer aplana arrays!).
+- **DIBUJO DUPLICADO DEL RAIL (solo se veía 1 cuenta con 9 en config)**: la
+  estructura `#rail{display:contents}` rompía el diff (los tiles no eran
+  hijos directos del contenedor de scroll). FIX: estructura real —
+  `.rail-scroll > #rail (flex column gap 12) + addBtn`, gaps uniformes de
+  12px en ambos niveles; opacidad de iconos 0.85 → 1 (más contraste).
+- **Borrado de perfil al eliminar cuenta**: `close_account_webview` ahora
+  TAMBIÉN hace remove_dir_all del perfil webview/<id> (best-effort) — sin
+  sesiones huérfanas en disco (el README ya lo prometía).
+
 ## Round 2 (feedback del usuario tras probar: renombrado + premium + delete)
 
 - **Nombre**: ZapDude en TODAS partes (ventana "ZapDude", "Configuración — ZapDude",

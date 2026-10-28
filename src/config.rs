@@ -158,7 +158,11 @@ impl Default for ConfigFile {
     fn default() -> Self {
         Self {
             api: ApiConfig::default(),
-            accounts: vec![AccountConfig::default()],
+            // VIRGIN installs start with NO accounts: the shell auto-opens
+            // a fresh "Cuenta 1" (account-1) with its QR — matching the
+            // original ZapZap flow (the legacy "default" account name came
+            // from the Python fork's config and confused nobody's naming).
+            accounts: vec![],
             prefs: AppPrefs::default(),
         }
     }
@@ -343,12 +347,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_config_has_disabled_api_and_one_account() {
+    fn default_config_has_disabled_api_and_no_accounts() {
+        // Virgin installs: API closed, ZERO accounts (the shell auto-creates
+        // a fresh "Cuenta 1" on the next open — never a legacy "default").
         let config = ConfigFile::default();
         assert!(!config.api.enabled);
         assert_eq!(config.api.port, DEFAULT_API_PORT);
-        assert_eq!(config.accounts.len(), 1);
-        assert_eq!(config.accounts[0].id, "default");
+        assert_eq!(config.accounts.len(), 0);
     }
 
     #[test]

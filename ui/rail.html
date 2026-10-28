@@ -66,17 +66,21 @@
       margin-top: 12px;
     }
 
-    /* ---- Accounts scroll area: EVERY tile spaced uniformly (10px) ---- */
+    /* ---- Accounts scroll area: EVERY tile spaced uniformly (12px) ---- */
     .rail-scroll {
       flex: 1; overflow-y: auto; width: 100%;
       display: flex; flex-direction: column; align-items: center;
-      gap: 12px;                       /* the ONLY gap: logo/acc/acc/…/+ */
+      gap: 12px;                       /* the ONLY gap: accounts/…/+ */
       padding: 12px 0 14px;
       scrollbar-width: none;
       mask-image: linear-gradient(180deg, transparent 0, #000 14px, #000 calc(100% - 16px), transparent 100%);
       -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 14px, #000 calc(100% - 16px), transparent 100%);
     }
     .rail-scroll::-webkit-scrollbar { display: none; }
+    #rail {
+      display: flex; flex-direction: column; align-items: center; gap: 12px;
+      width: 100%;
+    }
 
     /* ---- Account tiles + the in-flow "+" ---- */
     .avatar, .add-btn {
@@ -90,7 +94,7 @@
       flex-shrink: 0;
       font-family: inherit;
     }
-    .avatar svg, .add-btn svg { width: 20px; height: 20px; opacity: 0.85; }
+    .avatar svg, .add-btn svg { width: 20px; height: 20px; opacity: 1; }
     .avatar:hover, .add-btn:hover { background: var(--tile-hover); transform: translateY(-1px); border-color: var(--stroke); }
     .avatar.active {
       background: var(--accent-soft);
@@ -191,7 +195,7 @@
   <div class="divider" aria-hidden="true"></div>
 
   <div class="rail-scroll" id="scroll">
-    <div id="rail" style="display:contents"></div>
+    <div id="rail"></div>
     <button class="add-btn" id="addBtn">
       <svg class="icon"><use href="#i-plus"/></svg>
       <span class="tooltip">Agregar cuenta</span>
