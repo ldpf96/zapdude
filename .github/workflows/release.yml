@@ -51,6 +51,12 @@ jobs:
           projectPath: "."
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'v1.2.0' }}
           releaseName: "Zapdude ${{ github.ref_type == 'tag' && github.ref_name || 'v1.2.0' }}"
+          releaseBody: |
+            Download page: https://ldpf96.github.io/zapdude-site/
+
+            **Windows** - `x64-setup.exe`, per-user NSIS installer, no admin needed.
+            **macOS** - `.dmg` for Apple Silicon (aarch64) and Intel (x64), macOS 14 or newer; the first open asks for one confirmation because builds ship without paid Apple signing.
+            **Source** - https://github.com/ldpf96/zapdude (AGPL-3.0; not affiliated with WhatsApp or Meta).
           releaseDraft: false
           prerelease: false
           args: --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
