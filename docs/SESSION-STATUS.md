@@ -1,195 +1,190 @@
-﻿# ESTADO DE LA SESIÃ“N â€” Zapdude (Rust)
+﻿# ESTADO DE LA SESIÓN — Zapdude (Rust)
 
-> Documento de continuidad para agentes/compaction. Ãšltima actualizaciÃ³n: 2026-10-28 (tarde, v6).
+> Documento de continuidad para agentes/compaction. Última actualización:
+> 2026-10-28 (tarde, v7).
 >
-> **SIGUIENTE PASO INMEDIATO**: el usuario COMPACTÃ“ y estÃ¡ PROBANDO en vivo la
-> versiÃ³n nueva instalada (QR, scroll del rail, tema, bandeja, pop-out de
-> llamadas, borrado con X). Atender su feedback con capturas. Prioridad de
-> verificaciÃ³n pendiente: llamadas/voide pop-out y QR real.
+> **SIGUIENTE PASO INMEDIATO**: el usuario está PROBANDO en vivo la versión
+> nueva (binario de 2026-10-28 14:56, ya instalado). Round 7 de feedback
+> ATENDIDO Y VERIFICADO: (a) icono viejo en el exe reemplazado por el
+> verde/rayito negro, (b) cierre del drawer instantáneo (1 ms), (c) el
+> renombrado ya no borra lo que escribes. Pendiente: confirmación del
+> usuario de que ve el icono verde en la bandeja/taskbar (ie4uinit -show ya
+> corrido), prueba real del pop-out de llamadas y del QR escaneado.
 >
-> La app se llama **Zapdude** (Z mayÃºscula, resto minÃºscula â€” aclaraciÃ³n
-> EXPLÃCITA del usuario: "Debe ser Zapdude, no ZapDude"; NO usar "ZapDude").
-> Mantener crÃ©dito a Rafael Tosta por ZapZap. Todo verificado con capturas
+> La app se llama **Zapdude** (Z mayúscula, resto minúscula — aclaración
+> EXPLÍCITA del usuario: "Debe ser Zapdude, no ZapDude"; NO usar "ZapDude").
+> Mantener crédito a Rafael Tosta por ZapZap. Todo verificado con capturas
 > de ventana reales (PrintWindow + PW_RENDERFULLCONTENT). Instalador actual:
 > `C:\Users\PC\Desktop\Projects\Zapdude\zapdude-rs\target\release\bundle\nsis\Zapdude_1.0.0_x64-setup.exe`
-> (~2.81 MiB).
+> (2,943,632 bytes, ~2.81 MiB).
 
-## Estado actual del usuario (importante, v6)
+## Estado actual del usuario (importante, v7)
 
-- **El usuario DESINSTALÃ“ para versiÃ³n virgen** â†’ el hook NSIS borrÃ³
-  `%APPDATA%\app.zapzap.desktop` COMPLETO (config + perfiles â€” incluida la
-  sesiÃ³n "default" que tenÃ­a logueada; limpio a propÃ³sito, Ã©l lo pidiÃ³).
-- DespuÃ©s re-instalÃ© en silencio (`/S`) el NSIS nuevo: binario
-  `C:\Users\PC\AppData\Local\Zapdude\zapdude.exe` (release, 11.2 MB,
-  2026-10-28 14:01). Title bar "Zapdude" + icono verde/rayito negro âœ“.
-- La app estÃ¡ CORRIENDO con el binario nuevo: **"Cuenta 1" (account-1)
-  auto-creada, dot naranja = QR esperando**, tema oscuro, autostart OFF,
-  API desactivada. Captura final: `C:\temp\n1-virgen-final.png`.
-- Theme toggle verificado uniforme (light m2 / dark m3, sin franjas mixtas).
-- IE 4 icon cache refrescado (ie4uinit -show) para la taskbar.
+- El usuario tiene 6 cuentas creadas (account-1..6, labels "Cuenta 1".."Cuenta 6")
+  y está probando EN VIVO: tema claro, bandeja, menú X, "+" del rail, renombrar.
+- App corriendo con el binario nuevo: `C:\Users\PC\AppData\Local\Zapdude\zapdude.exe`
+  (release, 11,274,752 bytes, 2026-10-28 14:56). Title de la ventana "Zapdude" +
+  icono verde/rayito negro VERIFICADO leyendo el HICON real (WM_GETICON →
+  GetIconInfo → GetObject + samples de píxeles: 99,222,154 / 4,35,26).
+- Theme toggle verificado uniforme por el usuario ("perfecto, puedes
+  spamearlo"). Rail/drawer/bienvenida bien.
+- El usuario dijo en Round 7: estructura bonita, todo bien bonito; la queja
+  dura era el ICONO GRIS CON RAYO BLANCO (por eso Round 7 lo mata).
 
-## QuÃ© es este proyecto
+## Qué es este proyecto
 
 Reescritura completa en **Rust** del cliente **ZapZap** (original de **Rafael Tosta**,
 Python/GTK, https://github.com/rafatosta/zapzap, GPL-3.0). Este fork se distribuye
-como **AGPL-3.0** (obra derivada, Â§13) con crÃ©dito obligatorio a Rafael Tosta
+como **AGPL-3.0** (obra derivada, §13) con crédito obligatorio a Rafael Tosta
 (see `NOTICE.md`).
 
 Requisitos del usuario (en orden de importancia):
 1. **Multi-cuenta vital**: todas las cuentas de WhatsApp en UNA app, notificaciones
    unificadas. Experiencia EXACTAMENTE como ZapZap original: rail lateral con
-   avatares, click en "+" agrega cuenta SIN FORMULARIOS â†’ QR â†’ escanear â†’ entrar.
+   avatares, click en "+" agrega cuenta SIN FORMULARIOS → QR → escanear → entrar.
    El usuario dijo: "hazlo en un principio igual [al original] y si quieres a
-   partir de ahÃ­ lo mejoras".
-2. **Interfaz humana** profesional â€” "mÃ¡s premium, mÃ¡s profesional" â€” que la gente
+   partir de ahí lo mejoras".
+2. **Interfaz humana** profesional — "más premium, más profesional" — que la gente
    quiera usarlo.
 3. **API local** en loopback para humanos y **agentes de IA** (REST + SSE + webhook HMAC).
-4. **Llamadas/vÃ­deo/pantalla** funcionando (identidad Chrome 156 en JS).
-5. **Sin terminal** al abrir, **instalador Windows NSIS**, desinstalaciÃ³n completa.
+4. **Llamadas/vídeo/pantalla** funcionando (identidad Chrome 156 en JS).
+5. **Sin terminal** al abrir, **instalador Windows NSIS**, desinstalación completa.
 6. "Que no se rompa nunca": errores degradan, no crashean.
 
 ## Ubicaciones
 
 - **Proyecto**: `C:\Users\PC\Desktop\Projects\Zapdude\zapdude-rs`
-- **Instalador**: `target\release\bundle\nsis\ZapDude_1.0.0_x64-setup.exe` (~2.84 MiB)
+- **Instalador**: `target\release\bundle\nsis\Zapdude_1.0.0_x64-setup.exe` (~2.81 MiB)
 - **Config runtime**: `%APPDATA%\app.zapzap.desktop\config.json`
-  (camelCase, tolerante a BOM: `api{enabled,port,apiKey,exposeNetwork,webhookUrl,webhookSecret}` + `accounts[{id,label,enabled}]`)
+  (camelCase, tolerante a BOM: `api{enabled,port,apiKey,exposeNetwork,webhookUrl,webhookSecret}` + `accounts[{id,label,enabled}]` + `prefs{theme,autostart,startMinimized}`)
 - **Perfiles WebView2**: `%APPDATA%\app.zapzap.desktop\webview\<account-id>`
 - **ZapZap original (referencia, NO tocar)**: `C:\Users\PC\Desktop\Projects\Zapdude\zapzap-main`
 - **tauri CLI prebuilt**: `zapdude-rs\tools\tauri.exe` (usar: `.\tools\tauri.exe build --bundles nsis`)
+- **Generador de iconos**: `scripts/regen-icons.ps1` (reconstruye icon.ico
+  desde los PNG aprobados + re-renderiza icon.png/tiles UWP);
+  auditor de .ico: `tools/dump-ico.ps1` (extrae los frames para verlos).
 
-## Arquitectura actual (v3 â€” drawer + position-only parking)
+## Arquitectura actual (v3 — drawer + position-only parking)
 
 **UNA ventana "main"** (Tauri 2, feature `unstable`, multi-webview):
-- Webview `rail` (76px lÃ³gico, izquierda): `rail.html` servido POR el API server.
-  Solo: **logo ZapDude (rayito SVG) arriba** â†’ **avatares** (squircles 44px con el
-  rayito ZapDude â€” SIN letras/nÃºmeros; activa = anillo verde + glow; dot de estado:
-  verde=conectada, naranja=espera QR, gris=cargando) â†’ **botÃ³n "+"** abajo.
-  Sin footer, sin tuerquita, sin â“˜, sin versiÃ³n, sin divisoria (todo eso vive en
-  el drawer). Poll cada 2.5s con **diff incremental de DOM** (renderRail por
-  dataset.id â€” sin flicker).
+- Webview `rail` (76px lógico, izquierda): `rail.html` servido POR el API server.
+  Solo: **logo Zapdude (rayito SVG) arriba** → **avatares** (squircles 44px con el
+  rayito Zapdude — SIN letras/números; activa = anillo verde + glow; dot de estado:
+  verde=conectada, naranja=espera QR, gris=cargando) → **botón "+"** abajo.
+  Sin footer, sin tuerquita, sin ℹ, sin versión (todo eso vive en el drawer).
+  Poll cada 2.5s con **diff incremental de DOM** (renderRail por dataset.id — sin flicker).
   - **Logo = toggle drawer de opciones** (POST /api/ui/drawer).
   - Click en avatar = abrir/cambiar a esa cuenta.
-  - **Eliminar cuenta**: clic derecho sobre el avatar lo "arma" (rojo Ã—, pulso) â†’
+  - **Eliminar cuenta**: clic derecho sobre el avatar lo "arma" (rojo ×, pulso) →
     clic de nuevo elimina; Esc o clic en otro lo desarma (SIN auto-desarme de
-    tiempo â€” un timer de 4s se comÃ­a los clicks lentos y "no dejaba borrar").
-- Webview `welcome`: backdrop tÃ©cnico (NUNCA es destino de ningÃºn flujo).
-- **Webview `drawer`** (LAZY, se crea al primer toggle para quedar ENCIMA de las
-  cuentas): `drawer.html` servido por el server â€” panel de 380px sobre el contenido
-  con secciones separadas: **ConfiguraciÃ³n API** (toggle + badge Activa/Desactivada,
-  puerto, clave, webhook, guardar), **Agente de IA** (endpoints), **Acerca de**
-  (ZapDude, AGPL-3.0, crÃ©dito Rafael Tosta). Cierra con X o Esc. La ventana
-  "settings" separada quedÃ³ en el cÃ³digo PERO la UI ya no la usa.
+    tiempo — un timer de 4s se comía los clicks lentos y "no dejaba borrar").
+- Webview `welcome`: backdrop técnico (NUNCA es destino de ningún flujo).
+- **Webview `drawer`** (LAZY, creado en el primer toggle para quedar ENCIMA de
+  las cuentas): `drawer.html` servido por el server — panel a pantalla completa
+  con secciones: **Preferencias** (tema claro, autostart, inicio minimizado),
+  **Cuentas** (renombrar con refresco incremental — ver Round 7), **Configuración
+  API** (toggle + badge, puerto, clave, webhook, guardar), **Agente de IA**
+  (endpoints), **Acerca de** (Zapdude, AGPL-3.0, crédito Rafael Tosta). Cierra
+  con X o Esc (el cierre ahora es INSTANTÁNEO — relayout directo). La ventana
+  "settings" separada quedó eliminada del código.
 - Webviews `account-<id>`: WhatsApp Web (`https://web.whatsapp.com`), cada uno con:
   - `data_directory` aislado (perfil propio por cuenta)
-  - UA Chrome 156.0.8078.49 + `client_hints_fix.js` (identidad JS para llamadas) â€”
-    inyectado en document-start (startup script, pequeÃ±o)
-  - `api_page_bridge.js` â€” **INYECTADO DIFERIDO** (ver "LecciÃ³n crÃ­tica")
-  - `hide_download_banners.js` â€” **REESCRITO SEGURO** (ver "LecciÃ³n crÃ­tica")
+  - UA Chrome 156.0.8078.49 + `client_hints_fix.js` (identidad JS para llamadas) —
+    inyectado en document-start (startup script, pequeño)
+  - `api_page_bridge.js` — INYECTADO DIFERIDO (ver "Lección crítica")
+  - `hide_download_banners.js` — REESCRITO SEGURO (ver "Lección crítica")
   - Permisos auto-Allow: Microphone, Camera, DisplayCapture, Notifications, ClipboardRead, PointerLock
+  - `on_new_window` → pop-out REAL de llamadas (comparte el environment WebView2)
 - **VISIBILIDAD (modelo parked offscreen, position-only)**: el webview activo va
-  en `(RAIL_WIDTH, 0)` a tamaÃ±o completo; los inactivos van a **x=-24000
-  (PARKED_X) TAMBIÃ‰N A TAMAÃ‘O COMPLETO**. El switch es SOLO movimiento de
-  posiciÃ³n â†’ WhatsApp NO re-renderiza â†’ cambio instantÃ¡neo (<350ms medidos).
-  (El modelo anterior 1Ã—1 forzaba re-render completo de WhatsApp: 2-3s por switch.)
-- **Arranque (orden crÃ­tico en main.rs setup)**:
-  1. `enforce_single_instance()` (mutex `Local\app.zapzap.desktop.single`; 2Âª
-     instancia sale inmediatamente â€” evita peleas de puerto/config)
-  2. `start_loopback_server()` â€” **ANTES de crear webviews** (antes la UI cargaba
-     antes de que el server existiera â†’ error Edge "can't reach this page" al abrir)
+  en `(RAIL_WIDTH, 0)` a tamaño completo; los inactivos van a **x=-24000
+  (PARKED_X) TAMBIÉN A TAMAÑO COMPLETO**. El switch es SOLO movimiento de
+  posición → WhatsApp NO re-renderiza → cambio instantáneo (<350ms medidos).
+- **Arranque (orden crítico en main.rs setup)**:
+  1. `enforce_single_instance()` (mutex `Local\app.zapzap.desktop.single`)
+  2. `start_loopback_server()` — ANTES de crear webviews
   3. `create_shell` (rail + welcome)
-  4. `ensure_account_webview` por cuenta (nacidos a TAMAÃ‘O COMPLETO y luego
-     parqueados; un webview nacido 1Ã—1 u oculto queda gris para siempre)
-  5. `auto_open_first_account` â€” abre la primera cuenta directo (sin welcome
-     interstitial; crea `Cuenta 1` si no hay ninguna â€” comportamiento ZapZap original)
+  4. `ensure_account_webview` por cuenta (nacidos a TAMAÑO COMPLETO y luego
+     parqueados; un webview nacido 1×1 u oculto queda gris para siempre)
+  5. `auto_open_first_account` — abre la primera cuenta directo (crea "Cuenta 1"
+     si no hay ninguna — comportamiento ZapZap original)
   6. tray
 - Carrera "already exists": `window.add_child` se despacha async al hilo principal;
-  si `add_child` responde "already exists" se trata como Ã©xito (no fallar el open).
-- Ventana "settings" separada (`settings.html?tab=api|agent|about`), servida por el server.
+  si responde "already exists" se trata como éxito.
 - Cerrar ventana main = ocultar (tray mantiene la app viva).
-- Tray: "Mostrar <cuenta>" por cuenta, "Ocultar ventanas", "Salir de ZapDude".
-- API server: bind con RETRY (40 Ã— 250ms) â€” el restart tras `POST /api/config`
-  fallaba con error 10048 (puerto aÃºn ocupado por el listener viejo).
-- `list_accounts` responde AL INSTANTE con cachÃ© de session_state (TTL 2.5s,
-  refresco en background con tokio::spawn) â€” el rail ya no espera 1.2s de snapshots.
+- Tray: "Mostrar <cuenta>" por cuenta, "Ocultar ventanas", "Salir de Zapdude";
+  el menú se reconstruye al agregar/eliminar/REnombrar (refresh_tray).
+- API server: bind con RETRY (40 × 250ms).
+- `list_accounts` responde AL INSTANTE con caché de session_state (TTL 2.5s,
+  refresco en background con tokio::spawn).
 
-**Clave del diseÃ±o**: el **API server sirve la propia UI** (`GET /` â†’ rail.html,
-`GET /welcome`, `GET /settings`, `GET /drawer` â€” embebidos con include_str!). Todas
-las pÃ¡ginas hacen `fetch` **mismo-origen** â†’ imposible fallar por CORS/IPC/file://.
-NO se usa Tauri IPC para la UI (los comandos de `app_commands.rs` siguen
-registrados pero la UI usa HTTP).
+**Clave del diseño**: el **API server sirve la propia UI** (`GET /` → rail.html,
+`GET /welcome`, `GET /drawer` — embebidos con include_str!). Todas las páginas
+hacen `fetch` mismo-origen. NO se usa Tauri IPC para la UI.
 
-## âš ï¸ LECCIÃ“N CRÃTICA â€” la "pÃ¡gina gris" (2 causas encadenadas)
+## ⚠️ LECCIÓN CRÍTICA — la "página gris" (2 causas encadenadas)
 
-SÃ­ntoma: rail/welcome perfectos; al abrir una cuenta, el Ã¡rea de contenido queda
-en gris plano, PERO el DOM de WhatsApp estÃ¡ vivo (los snapshots del bridge veÃ­an
-el QR â€” `session_state: scan_qr`). Verificado con capturas PrintWindow
-(PW_RENDERFULLCONTENT=2) en `C:\temp\*.png`.
+Síntoma: rail/welcome perfectos; al abrir una cuenta, el área de contenido queda
+en gris plano, PERO el DOM de WhatsApp está vivo.
 
-**Causa raÃ­z 1 â€” webviews creados ocultos o nacidos enano quedan grises para
+**Causa raíz 1 — webviews creados ocultos o nacidos enanos quedan grises para
 siempre.** WebView2 (child webviews en wry 0.57) solo arranca su pipeline de
-composiciÃ³n si nace a tamaÃ±o real en el slot de contenido. Fix: nacer a tamaÃ±o
-completo + parqueo por POSICIÃ“N (x=-24000, tamaÃ±o completo â€” ver Arquitectura).
-NOTA: al inicio se creyÃ³ que el parking offscreen tambiÃ©n causaba gris y se pasÃ³
-por 1Ã—1; despuÃ©s de arreglar la causa raÃ­z 2 se comprobÃ³ que el parking offscreen
-funciona perfecto y es el que da switches instantÃ¡neos.
+composición si nace a tamaño real en el slot de contenido. Fix: nacer a tamaño
+completo + parqueo por POSICIÓN (x=-24000, tamaño completo).
 
-**Causa raÃ­z 2 â€” `hide_download_banners.js` (versiÃ³n vieja) borraba la pÃ¡gina.**
-Su barrido genÃ©rico marcaba `__zapdudeChecked` por nodo y ocultaba cualquier
-contenedor cuyo `textContent` coincidiera con el patrÃ³n de promo; los
-contenedores grandes del landing coinciden (su texto contiene "Descarga WhatsApp
-para Windows") â†’ TODA la pÃ¡gina quedaba `display:none` â†’ fondo oscuro plano.
-CorrelaciÃ³n engaÃ±osa: el bridge solo parecÃ­a "vivo" en las corridas grises
-(por el orden en que cada script se instalaba/truncaba). Fix: reescritura
-"smallest matching node only" + colapso controlado de ancestros (mÃ¡x 6 niveles,
-solo si TODOS los hijos quedan display:none computado, contenedores de â‰¤4 hijos).
+**Causa raíz 2 — `hide_download_banners.js` (versión vieja) borraba la página.**
+Fix: reescritura "smallest matching node only" + colapso controlado de ancestros.
 
-**Hallazgos colaterales del debug (empÃ­ricos, no tocar sin re-testear)**:
-- Pasar `additional_browser_args` custom en child webviews + UA Chrome â‡’ gris
-  (probado: full set, solo ms*, solo bg-flags, wry-default explÃ­cito â€” TODOS grises
-  con UA; sin args custom â‡’ pinta). Por eso NO se pasan args custom en producciÃ³n.
-- `BROWSER_ARGS` viejo usaba `\` de continuaciÃ³n de Rust que pega tokens
-  ("...Protection--disable-...") â€” malformado ademÃ¡s.
-- Un solo initialization script combinado de ~23 KB tambiÃ©n se asociÃ³ al gris;
-  los scripts ahora van separados: startup = client_hints (5.5KB); bridge+promos
-  van DIFERIDOS vÃ­a eval idempotente desde el poller de beacons
-  (`DEFER_INSTALL_EVERY_TICKS=100` â‰ˆ cada 3s, chequeo `!window.__zapZapApiV1`).
+**Hallazgos colaterales del debug (empíricos, no tocar sin re-testear)**:
+- Pasar `additional_browser_args` custom en child webviews + UA Chrome ⇒ gris.
+  NO se pasan args custom en producción.
+- Un solo initialization script combinado de ~23KB también se asoció al gris;
+  los scripts van separados: startup = client_hints (5.5KB); bridge+promos van
+  DIFERIDOS vía eval idempotente desde el poller de beacons (DEFER_INSTALL_EVERY_TICKS=100
+  ≈ cada 3s, chequeo `!window.__zapZapApiV1`).
 - El transporte de eventos push (hook `window.Notification` + observer chat_list)
-  quedÃ³ DESHABILITADO en el bridge (era parte del enredado gris). La API pasiva
-  (status/chats/send/open-chat) funciona. Eventos push: pendiente de rediseÃ±o seguro.
+  quedó DESHABILITADO en el bridge. La API pasiva (status/chats/send/open-chat)
+  funciona. Eventos push: pendiente de rediseño seguro.
 
 ## Debug harness (reutilizable)
 
 - Captura de ventana con contenido WebView2: PrintWindow + `PW_RENDERFULLCONTENT=2`
-  (los webviews son DirectComposition; sin ese flag sale vacÃ­o). Scripts en el
-  historial; guardar en `C:\temp\*.png` y leerlas con visiÃ³n.
-- BisecciÃ³n por env var `ZAPDUKE_WEBVIEW_OPTS` (window.rs `has()`):
-  `ua|scripts|data|args|perms|scripts1|scripts2|scripts3|argsbg|argsms|argsry` â€”
-  dejar el harness; es barato y ya salvÃ³ la sesiÃ³n dos veces.
+  (los webviews son DirectComposition; sin ese flag sale vacío). Guardar en
+  `C:\temp\*.png` y leerlas con visión.
+- Bisección por env var `ZAPDUKE_WEBVIEW_OPTS` (window.rs `has()`):
+  `ua|scripts|data|args|perms|scripts1|scripts2|scripts3|argsbg|argsms|argsry`.
+- **HERRAMIENTA NUEVA (Round 7)**: medir el parking del drawer SIN tocar la UI
+  enumerando los childs `WRY_WEBVIEW` de la ventana main y observando quién pasa
+  de x≈+RAIL a x<-10000 (temp/opencode/measure-close2.ps1, copiada de ese
+  espíritu). LEE rects aunque la ventana esté oculta en la bandeja.
+- **HERRAMIENTA NUEVA (Round 7)**: leer el icono real de la ventana:
+  WM_GETICON(0x7F, wp=0/1) + GetClassLongPtr(GCLP_HICON/-SM) → GetIconInfo →
+  GetObject(BITMAP) para dims → Image.FromHbitmap → samples de RGB
+  (temp/opencode/read-icons.ps1 + decode-icon.ps1). Funciona con la ventana
+  oculta (no interrumpe al usuario).
+- Tests: 14 unitarios (`cargo test`) SIEMPRE en verde antes de entregar.
 
-## Historial de fixes importantes (por quÃ© pasaron)
+## Historial de fixes importantes (por qué pasaron)
 
-1. axum 0.8 `.nest("/")` pÃ¡nico "Nesting at the root" â†’ rutas planas.
-2. WebView2 `ExecuteScript` llega **doble-codificado** cuando el valor es String â†’
-   `evaluate()` desenrolla una vez (sin esto todo caÃ­a a defaults silenciosos).
+1. axum 0.8 `.nest("/")` pánico "Nesting at the root" → rutas planas.
+2. WebView2 `ExecuteScript` llega doble-codificado cuando el valor es String →
+   `evaluate()` desenrolla una vez.
 3. `session_state` honesto a 3 estados: detecting/scan_qr/logged_in.
-4. UI anterior usaba fetchâ†’server no corriendo + CORS file:// â†’ "Failed to fetch".
-   Fix: server siempre corre + UI servida por Ã©l (mismo origen).
-5. UI anterior usaba `window.__TAURI__` IPC que fallaba silencioso â†’ botones muertos.
+4. UI anterior usaba fetch→server no corriendo + CORS file:// → "Failed to fetch".
+   Fix: server siempre corre + UI servida por él (mismo origen).
+5. UI anterior usaba `window.__TAURI__` IPC que fallaba silencioso → botones muertos.
 6. `windows_subsystem = "windows"` en main.rs (sin consola).
 7. Rate limit 60/min, body 1MB, ring 200 eventos, SSE keep-alive 15s.
-8. 14 tests unitarios (`cargo test`) SIEMPRE en verde antes de entregar.
-9. (HOY) Server ANTES de shell; auto-open primera cuenta; nacer a tamaÃ±o completo;
-   parqueo offscreen position-only (switch instantÃ¡neo); "already exists" no fatal;
+8. Tests SIEMPRE en verde antes de entregar.
+9. Server ANTES de shell; auto-open primera cuenta; nacer a tamaño completo;
+   parqueo offscreen position-only (switch instantáneo); "already exists" no fatal;
    hide-banners reescrito smallest-node + zonas protegidas; eventos push del bridge
    desactivados; bind con retry; single-instance mutex; drawer de opciones en la
-   misma ventana; cachÃ© de session_state; deleteAppDataOnUninstall no soportado
-   por el tauri-build local â†’ NSIS hook `installerHooks: ./windows/installer-hooks.nsh`
-   (RMDir /r del data dir al desinstalar).
+   misma ventana; caché de session_state; NSIS hook `installerHooks` (RMDir /r
+   del data dir al desinstalar).
 
 ## Commits (en orden)
 
-- `d08eb65` feat: initial Rust rewrite (Tauri 2) â€” multi-account, tray, API, calls identity
+- `d08eb65` feat: initial Rust rewrite (Tauri 2) — multi-account, tray, API, calls identity
 - `25c819e` fix: GUI app without console + human interface window
 - `58d013d` fix: app loads UI without crashing + config change restarts API server
 - `5dfdb65` feat: Apple-style UI + robust API port detection + add account fix
@@ -202,262 +197,219 @@ solo si TODOS los hijos quedan display:none computado, contenedores de â‰¤4 
 - `b7bbee0` feat: full-screen options, lazy account loading, visible delete-X, rename to Zapdude, publish-ready
 - `c6335cf` feat: light/dark theme, geometry watchdog, tray fixes, autostart, new app icon, call pop-outs, symmetric rail, account renaming
 - `33280c9` fix: virgin installs create 'Cuenta 1' instead of legacy 'default'
+- `61bb0c5` fix: proper green/black app icon, instant drawer close, rename-safe account list (Round 7)
 
-## Round 3 (feedback: logo-menus, velocidad, parpadeo, footer)
+## Round 3 (feedback: logo-menús, velocidad, parpadeo, footer)
 
-- **Drawer de opciones en la MISMA ventana** (ui/drawer.html, label `drawer`,
-  DRAWER_WIDTH=380): el logo ZapDude del rail lo abre/cierra
-  (POST /api/ui/drawer â†’ window::toggle_drawer, creado LAZY la primera vez para
-  que quede ENCIMA de las cuentas). Secciones separadas: ConfiguraciÃ³n API
-  (form + badge Activa/Desactivada + guardar), Agente de IA (endpoints), Acerca de
-  (ZapDude + AGPL + crÃ©dito Rafael Tosta). Cierra con X o Esc.
-- **Rail sin footer**: solo logo â†’ avatares â†’ "+". Sin tuerquita, sin â“˜, sin
-  versiÃ³n, sin la lÃ­nea divisoria pegada al "+".
-- **Switch INSTANTÃNEO**: las cuentas inactivas van parqueadas a TAMAÃ‘O COMPLETO
-  en x=-24000 (PARKED_X) y el switch es SOLO movimiento de posiciÃ³n â€” WhatsApp no
-  re-renderiza (con 1Ã—1 re-renderizaba completo = 2-3s). Medido: pintado completo
-  a 350ms. El viejo "gray al parkear offscreen" era el script de promos (ya
-  reescrito) â€” el parking offscreen funciona bien con los scripts arreglados.
+- **Drawer de opciones en la MISMA ventana** (ui/drawer.html, label `drawer`):
+  el logo Zapdude del rail lo abre/cierra (POST /api/ui/drawer →
+  window::toggle_drawer, creado LAZY la primera vez para que quede ENCIMA de
+  las cuentas). Secciones separadas: Configuración API (form + badge
+  Activa/Desactivada + guardar), Agente de IA (endpoints), Acerca de (Zapdude +
+  AGPL + crédito Rafael Tosta). Cierra con X o Esc.
+- **Rail sin footer**: solo logo → avatares → "+". Sin tuerquita, sin ℹ, sin
+  versión, sin la línea divisoria pegada al "+".
+- **Switch INSTANTÁNEO**: las cuentas inactivas van parqueadas a TAMAÑO COMPLETO
+  en x=-24000 (PARKED_X) y el switch es SOLO movimiento de posición — WhatsApp
+  no re-renderiza (con 1×1 re-renderizaba completo = 2-3s). Medido: pintado
+  completo a 350ms.
 - **Rail sin parpadeo**: renderRail() hace diff incremental (por dataset.id,
   insertBefore en orden) en vez de innerHTML="" por cada poll (2.5s) o add.
-- open_account_webview cierra el drawer (el QR/chat toma todo el Ã¡rea).
-- reload_shell_ui re-apunta tambiÃ©n el drawer (`/drawer`).
-- Config de la ventana "settings" y su endpoint /api/ui/settings quedan en el
-  cÃ³digo pero la UI ya no los usa (todo vive en el drawer).
+- open_account_webview cierra el drawer (el QR/chat toma todo el área).
+- reload_shell_ui re-apunta también el drawer (`/drawer`).
+- Config de la ventana "settings" quedó en el código y luego eliminada (todo
+  vive en el drawer).
 
 ## Round 4 (feedback 2: pantalla completa, lazy load, X visible, "Zapdude", publicar)
 
-- **Opciones a PANTALLA COMPLETA**: el drawer (logo del rail) ahora cubre TODO
-  el Ã¡rea de contenido (de DRAWER_WIDTH=380 a content.width), columna centrada
-  max-width 780px. El rail sigue visible para que el logo siga haciendo toggle.
-  DRAWER_WIDTH eliminado. Verificado con captura (f2-drawer-fullscreen).
+- **Opciones a PANTALLA COMPLETA**: el drawer (logo del rail) cubre TODO el área
+  de contenido, columna centrada max-width 780px. El rail sigue visible para que
+  el logo siga haciendo toggle. Verificado con captura (f2-drawer-fullscreen).
 - **Carga diferida de cuentas** (velocidad con muchas cuentas): main.rs YA NO
-  crea un webview por cuenta al arranque â€” solo `auto_open_first_account`;
-  las demÃ¡s cuentas crean su webview LAZY en el primer open
-  (`open_account_webview` â†’ `ensure_account_webview` ya lo hace). Arranque
-  instantÃ¡neo con N cuentas. Trade-off: las cuentas de fondo no dan
-  notificaciones hasta abrirse una vez por sesiÃ³n (documentado en README).
-- **X VISIBLE al armar con clic derecho**: rail.html aÃ±ade symbol `#i-x` y
+  crea un webview por cuenta al arranque — solo `auto_open_first_account`; las
+  demás cuentas crean su webview LAZY en el primer open. Trade-off: las cuentas
+  de fondo no dan notificaciones hasta abrirse una vez por sesión (README).
+- **X VISIBLE al armar con clic derecho**: rail.html añade symbol `#i-x` y
   renderRail hace `use.setAttribute('href', armed ? '#i-x' : '#i-bolt')`.
-  Verificado con captura (h2-rail-crop: X roja clara sobre tile rojizo).
-- **Divisorias curvas estÃ©ticas** en el rail: `.divider.below` (bajo el logo)
-  y `.divider.above` (sobre el "+") â€” hairline verde con gradiente y borde
-  curvo (border-radius porcentual). Verificado en crop del rail.
-- **MenÃº contextual del navegador BLOQUEADO** en la UI: `contextmenu â†’
-  preventDefault` en rail/drawer/welcome (el clic derecho sobre el logo ya no
-  muestra el menÃº de pÃ¡gina web). Los webviews de WhatsApp conservan SU menÃº.
-- **Borrar la Ãºltima cuenta NO auto-crea una vacÃ­a**: nuevo
-  `open_first_remaining_or_welcome` (window.rs) â€” abre la primera cuenta
-  restante o muestra el welcome (que YA tiene botÃ³n "+ Agregar cuenta").
-  `close_account_webview` y `hide_account_content` lo usan. El arranque
-  (`auto_open_first_account`) SÃ crea "Cuenta 1" si no hay ninguna (flujo
-  ZapZap original intacto). Verificado: DELETE Ãºltima â†’ `accounts: []` +
-  welcome con CTA (captura h4). Luego se recreÃ³ account-1 para dejar la app
-  como estaba.
-- **Renombre a "Zapdude"** (Z mayÃºscula, resto minÃºscula â€” aclaraciÃ³n final
-  del usuario): productName, tÃ­tulo de ventana, tray, healthz service,
-  status name, textos UI, README, NOTICE. El binario sigue `zapdude.exe`
-  (cargo name) y el identifier `app.zapzap.desktop` NO cambia.
-- **Limpieza de cÃ³digo muerto** (repo listo para publicar): eliminados
-  `app_commands.rs` (mÃ³dulo + invoke_handler completo â€” la UI es 100% HTTP),
-  ventana "settings" (`create_settings_window`), rutas `/settings` y
-  `/api/ui/settings`, `ui/settings.html`, `withGlobalTauri: false`.
-- **FIX CRÃTICO del hider de banners (banner del QR)**: causa raÃ­z TRIPLE â€”
-  (1) el instalador diferido envolvÃ­a bridge+hider en UN SOLO eval con la
-  marca `__zapZapApiV1`: si el bridge ya estaba marcado, el hider no se
-  instalaba nunca. Ahora `deferred_scripts()` devuelve pares (flag, script)
-  y page_ops instala cada uno con SU flag y SU try/catch. (2) El botÃ³n del
-  promo card es un BUTTON cuyo textContent es "Downloadic-download" (el svg
-  interno trae un title "ic-download" que se concatena al texto) â†’ nuevo
-  `cleanText()` que elimina tokens `ic-*` antes de los patrones exactos.
-  (3) El card completo se oculta con `hideLandingPromoCard()`: busca el
-  botÃ³n "Download"/"Descargar" (texto limpio) y sube al ancestro MÃS CHICO
-  que contenga texto promo con presupuesto de 400 chars â€” el card del QR
-  (sin texto promo) jamÃ¡s matchea. Guardias: solo corre sin `#pane-side`/
-  `#main` VISIBLES (WhatsApp pre-renderiza #main oculto en el landing â€” la
-  existencia no basta; usar getClientRects) y los botones ya ocultos SÃ se
-  siguen (son la pista hacia el card â€” el barrido genÃ©rico los oculta
-  primero). DiagnÃ³stico vÃ­a beacon temporal + /api/events (cadena de
-  ancestros del botÃ³n). Verificado con captura g8: landing 100% limpio,
-  QR centrado, card del QR intacto.
-- NOTA de operaciÃ³n: una ediciÃ³n del config con PowerShell `-replace` tocÃ³
-  TODOS los `"enabled":true` (tambiÃ©n el de la cuenta) â€” restaurado a mano;
-  cuidado con replace global en JSON.
+- **Divisorias curvas estéticas** en el rail: `.divider.below` (bajo el logo) y
+  `.divider.above` (sobre el "+") — hairline verde con gradiente y borde curvo.
+- **Menú contextual del navegador BLOQUEADO** en la UI: `contextmenu →
+  preventDefault` en rail/drawer/welcome. Los webviews de WhatsApp conservan SU menú.
+- **Borrar la última cuenta NO auto-crea una vacía**: nuevo
+  `open_first_remaining_or_welcome` (window.rs) — abre la primera cuenta
+  restante o muestra el welcome (que YA tiene botón "+ Agregar cuenta").
+  El arranque (`auto_open_first_account`) SÍ crea "Cuenta 1" si no hay ninguna.
+- **Renombre a "Zapdude"** (Z mayúscula, resto minúscula): productName, título
+  de ventana, tray, healthz service, status name, textos UI, README, NOTICE.
+  El binario sigue `zapdude.exe` (cargo name) y el identifier
+  `app.zapzap.desktop` NO cambia.
+- **FIX CRÍTICO del hider de banners (banner del QR)**: causa raíz TRIPLE —
+  (1) el instalador diferido envolvía bridge+hider en UN SOLO eval: ahora
+  `deferred_scripts()` devuelve pares (flag, script) con SU flag y SU try/catch.
+  (2) El botón del promo card es un BUTTON cuyo textContent es
+  "Downloadic-download" → `cleanText()` que elimina tokens `ic-*`.
+  (3) El card completo se oculta con `hideLandingPromoCard()`: el card del QR
+  (sin texto promo) jamás matchea. Guardias: solo corre sin `#pane-side`/`#main`
+  VISIBLES (usar getClientRects).
 - `withGlobalTauri: false` (no se usa IPC).
 
-## Round 5 (feedback 3: tema, anclaje, bandeja, autostart, icono, popouts, rail simÃ©trico)
+## Round 5 (feedback 3: tema, anclaje, bandeja, autostart, icono, popouts, rail simétrico)
 
-- **DIAGNÃ“STICO CLAVE**: el usuario estaba corriendo la app VIEJA instalada
-  (`C:\Users\PC\AppData\Local\ZapDude\zapdude.exe`, tÃ­tulo "ZapDude", sin las
-  X ni nada de lo nuevo) â€” de ahÃ­ sus quejas de "no sale la X" y colores
-  viejos. TambiÃ©n tenÃ­a el ZapZap original 7.5.1 corriendo desde Descargas.
-  Al final de la ronda se instala el NSIS nuevo en silencio.
-- **Reset del config a "default"** (account "default" zombi reapareciÃ³): fue
-  una CARRERA entre el binario viejo instalado y el nuevo â€” el viejo leyÃ³ un
-  config.json a medio escribir â†’ parse fail â†’ `unwrap_or_default` â†’
-  persistiÃ³ el default. FIX: `SettingsState::load` ahora reintenta la lectura
-  (4 intentos Ã— 60ms) ante JSON invÃ¡lido; la carrera desaparece cuando solo
-  corre el binario nuevo (mismo mutex de instancia Ãºnica).
-- **TEMA CLARO/OSCURO** (pedido explÃ­cito): nueva secciÃ³n Preferencias en el
-  drawer con switch "Tema claro". Config: `AppPrefs { theme, autostart,
-  startMinimized }` (camelCase, serde default â€” compat con configs viejos).
-  Endpoints GET/POST /api/prefs (management, loopback). rail/drawer/welcome
-  leen prefs y aplican `data-theme` en `<html>` con overrides de variables
-  CSS (`:root[data-theme="light"]`). El rail re-chequea el tema cada 10s; el
-  drawer aplica al instante. El tema NO toca la pÃ¡gina de WhatsApp (cada
-  cuenta usa el tema que tenga en WhatsApp).
-- **NAVEGADOR ANCLADO A LAS 4 ESQUINAS** (bug: "el chat desapareciÃ³, se
-  achicÃ³ de derecha a izquierda"): relayout ahora tambiÃ©n corre en
-  `ScaleFactorChanged` y `Focused` (ademÃ¡s de Resized), MÃS un watchdog de
-  geometrÃ­a cada 2s (thread "zapdude-geometry") que re-alinea mientras la
-  ventana no estÃ© minimizada. El drift de layout ya no sobrevive.
-- **BANDEJA ARREGLADA** ("Mostrar cuenta nada de eso funciona"): (1) al hacer
-  clic en "Mostrar <cuenta>" la ventana principal se muestra/des-minimiza/
-  enfoca ANTES de abrir el webview (mostrar un webview dentro de una ventana
-  oculta no hace nada visible â€” ese era el bug); (2) `refresh_tray` reconstruye
-  el menÃº vÃ­a `tray_by_id`+`set_menu` cuando se agrega/elimina/renomina una
-  cuenta (antes quedaba viejo); (3) clic IZQUIERDO en el icono de la bandeja
-  trae la ventana (`on_tray_icon_event`, menÃº con right-click);
-  (4) "Ocultar ventanas" ahora oculta TODAS las ventanas de verdad.
-- **AUTOSTART + INICIO MINIMIZADO** (pedido explÃ­cito): Preferencias â†’
-  "Iniciar con Windows" (HKCU Run key vÃ­a crate winreg, sin admin) y
-  "Iniciar minimizado" (arranca sin ventana, vive en la bandeja). Verificado:
-  POST prefs autostart:true escribe `HKCU\...\Run\Zapdude = <exe>`; false lo
-  borra (NotFound = ok).
-- **ICONO DE LA APP** (pedido: "el verde con rayito negro estaba bien bonito,
-  Ãºsalo como logo del software"): generados icons/*.png (16..256) + icon.ico
-  multi-tamaÃ±o con GDI+ (scripts temporales en Temp/opencode): squircle verde
-  con degradado #34e877â†’#0f9e6c, highlight diagonal sutil y rayito negro
-  #04231a (path del rail escalado 62%). La bandeja y el exe lo usan.
-- **POPOUT DE LLAMADAS** ("modifica tu navegador para que permita popups"):
-  wry con handler ausente hace `SetHandled(true)` = NIEGA todos los popups.
-  `account_webview_builder` ahora aÃ±ade `on_new_window` â†’ `popup_window()`:
-  crea un WebviewWindow REAL (movible a cualquier lado) que comparte el
-  `environment` del opener (ICoreWebView2Environment â€” misma sesiÃ³n/cookies,
-  requisito de WebView2) + UA Chrome + client-hints + permisos; tamaÃ±o del
-  `features.size()` (default 480Ã—640). Labels `popup-<account>-<n>`.
-- **RAIL SIMÃ‰TRICO**: espaciado UNIFORME de 12px (logoâ†’divisoriaâ†’cuentasâ†’"+")
-  â€” antes el gap logoâ†’cuenta (18px padding) era mayor que cuentaâ†’cuenta
-  (10px), "rancio". El "+" ya NO estÃ¡ clavado abajo: vive DENTRO del flujo
-  como Ãºltimo tile (sube/baja al agregar/eliminar cuentas) â€” como pidiÃ³ el
-  usuario. Indicador "hay mÃ¡s" (chevron con bounce) cuando el rail desborda +
-  scroll con la rueda (mask fade ya existÃ­a).
-- **RENOMBRAR CUENTAS** (pedido: "deberÃ­as poder ponerle los nombres"): nueva
-  secciÃ³n "Cuentas" en el drawer (inputs + botÃ³n guardar por fila, refresco
-  cada 5s) y endpoint `POST /api/accounts/{id}/rename {label}` (â‰¤40 chars) â€”
-  verificado (Mi Personal â†” Cuenta 1). Tray y rail muestran el label nuevo.
-- **WELCOME con paleta correcta** (el usuario odiaba la pantalla azul-verde
-  vieja del arranque): reestilizado al gradiente teal actual con logo verde/
-  rayito negro + soporte de tema claro. El splash de arranque quedÃ³ en 150ms.
-- PowerShell+curl JSON: usar `--data-binary @file` o `{\"..\"}` escapado (las
-  comillas simples con `{...}` se las come el parser nativo).
+- **DIAGNÓSTICO CLAVE**: el usuario estaba corriendo la app VIEJA instalada —
+  de ahí quejas de "no sale la X" y colores viejos. Al final de la ronda se
+  instala el NSIS nuevo en silencio.
+- **Reset del config a "default"** (cuenta "default" zombi): CARRERA entre
+  binario viejo instalado y el nuevo — el viejo leyó un config.json a medio
+  escribir → parse fail → `unwrap_or_default` → persistió el default. FIX:
+  `SettingsState::load` reintenta la lectura (4 intentos × 60ms).
+- **TEMA CLARO/OSCURO**: sección Preferencias en el drawer con switch "Tema
+  claro". Config: `AppPrefs { theme, autostart, startMinimized }` (camelCase,
+  serde default — compat con configs viejos). Endpoints GET/POST /api/prefs.
+  El rail re-chequea el tema cada 10s; el drawer aplica al instante. El tema
+  NO toca la página de WhatsApp.
+- **NAVEGADOR ANCLADO A LAS 4 ESQUINAS**: relayout también corre en
+  `ScaleFactorChanged` y `Focused` (además de Resized), MÁS un watchdog de
+  geometría cada 2s (thread "zapdude-geometry").
+- **BANDEJA ARREGLADA**: (1) al hacer clic en "Mostrar <cuenta>" la ventana
+  principal se muestra/des-minimiza/enfoca ANTES de abrir el webview;
+  (2) `refresh_tray` reconstruye el menú cuando se agrega/elimina/renomina una
+  cuenta; (3) clic IZQUIERDO en el icono de la bandeja trae la ventana;
+  (4) "Ocultar ventanas" oculta TODAS las ventanas de verdad.
+- **AUTOSTART + INICIO MINIMIZADO**: Preferencias → "Iniciar con Windows"
+  (HKCU Run key vía crate winreg) y "Iniciar minimizado" (arranca sin ventana,
+  vive en la bandeja). Verificado.
+- **ICONO DE LA APP** (pedido: "el verde con rayito negro estaba bien bonito"):
+  generados icons/*.png (16..256) + icon.ico multi-tamaño con GDI+. PERO la
+  regeneración de esa ronda no llegó al .ico (por eso Round 7 lo corrige: el
+  ico quedó con el estilo viejo).
+- **POPOUT DE LLAMADAS**: wry con handler ausente hace SetHandled(true) = NIEGA
+  todos los popups. `account_webview_builder` ahora añade `on_new_window` →
+  `popup_window()`: crea un WebviewWindow REAL que comparte el `environment`
+  del opener (misma sesión/cookies, requisito de WebView2) + UA Chrome +
+  client-hints + permisos. Labels `popup-<account>-<n>`.
+- **RAIL SIMÉTRICO**: espaciado UNIFORME de 12px — el "+" vive DENTRO del flujo
+  como último tile (sube/baja al agregar/eliminar cuentas). Indicador "hay más"
+  (chevron con bounce) cuando el rail desborda + scroll con la rueda.
+- **RENOMBRAR CUENTAS**: sección "Cuentas" en el drawer y endpoint
+  `POST /api/accounts/{id}/rename {label}` (≤40 chars) — verificado.
+- **WELCOME con paleta correcta**: reestilizado al gradiente teal con logo
+  verde/rayito negro + soporte de tema claro. El splash de arranque en 150ms.
+- PowerShell+curl JSON: usar `--data-binary @file` (las comillas simples con
+  `{...}` se las come el parser nativo).
 
-## Round 6 (feedback 4: bughunt de tema/z-order/scroll, desinstalaciÃ³n virgen)
+## Round 6 (feedback 4: bughunt de tema/z-order/scroll, desinstalación virgen)
 
-- **El usuario DESINSTALÃ“ para tener versiÃ³n virgen** â†’ el hook NSIS borrÃ³
-  `%APPDATA%\app.zapzap.desktop` COMPLETO (config.json + perfiles webview â€”
-  el comportamiento pedido). Estado actual: SIN config; el prÃ³ximo arranque
-  auto-crea "Cuenta 1" con QR. Ruta absoluta del instalado:
-  `C:\Users\PC\AppData\Local\Zapdude\zapdude.exe` (pedido: dejar la ruta
-  visible).
-- **TEMA MITAD/MITAD (franja blanca + franja oscura)**: causas â€” el welcome
-  (y el drawer) aplicaban el tema UNA vez al crearse; el welcome queda
-  PARQUEADO y jamÃ¡s recarga â†’ al mostrarse aparece con el tema viejo; el
-  drawer si se creaba antes que las cuentas quedaba debajo (z-order) y
-  encima con estado viejo. FIX: (1) post_prefs â†’ `reload_shell_pages` re-
-  navega rail+welcome al instante (uniformidad); (2) `toggle_drawer` ahora
-  CIERRA+RECREA el drawer en cada apertura (siempre arriba + estado fresco);
-  (3) el rail ya re-chequeaba prefs cada 10s. Editar config.json a mano con
-  ConvertTo-Json -Depth 5 (Â¡el hash serializer aplana arrays!).
-- **DIBUJO DUPLICADO DEL RAIL (solo se veÃ­a 1 cuenta con 9 en config)**: la
-  estructura `#rail{display:contents}` rompÃ­a el diff (los tiles no eran
-  hijos directos del contenedor de scroll). FIX: estructura real â€”
-  `.rail-scroll > #rail (flex column gap 12) + addBtn`, gaps uniformes de
-  12px en ambos niveles; opacidad de iconos 0.85 â†’ 1 (mÃ¡s contraste).
+- El usuario DESINSTALÓ para versión virgen → el hook NSIS borró
+  `%APPDATA%\app.zapzap.desktop` COMPLETO. Luego reinstalado NSIS con `/S`.
+- **TEMA MITAD/MITAD (franja blanca + franja oscura)**: el welcome (y el drawer)
+  aplicaban el tema UNA vez al crearse; el welcome queda PARQUEADO y jamás
+  recarga. FIX: (1) post_prefs → `reload_shell_pages` re-navega rail+welcome al
+  instante; (2) `toggle_drawer` CIERRA+RECREA el drawer en cada apertura
+  (siempre arriba + estado fresco); (3) el rail ya re-chequeaba prefs cada 10s.
+- **DIBUJO DUPLICADO DEL RAIL**: la estructura `#rail{display:contents}` rompía
+  el diff. FIX: estructura real `.rail-scroll > #rail + addBtn`; iconos opacidad
+  0.85 → 1.
 - **Borrado de perfil al eliminar cuenta**: `close_account_webview` ahora
-  TAMBIÃ‰N hace remove_dir_all del perfil webview/<id> (best-effort) â€” sin
-  sesiones huÃ©rfanas en disco (el README ya lo prometÃ­a).
+  TAMBIÉN hace remove_dir_all del perfil webview/<id> (best-effort).
 
-## Round 2 (feedback del usuario tras probar: renombrado + premium + delete)
+## Round 7 (feedback 5: icono viejo, cierre del drawer lento, renombrado que borra)
 
-- **Nombre**: ZapDude en TODAS partes (ventana "ZapDude", "ConfiguraciÃ³n â€” ZapDude",
-  tray "Salir de ZapDude", `productName` â†’ instalador `ZapDude_1.0.0_x64-setup.exe`).
-  identifier/`app.zapzap.desktop` NO cambia (preserva config).
-- **Rail premium** (ui/rail.html): SVG symbol library (bolt/plus/gear/info â€” cero
-  emojis), logo squircle con glow que **abre la cuenta activa** (antes no hacÃ­a
-  nada), TODOS los avatares muestran el rayito (adiÃ³s letras/nÃºmeros D/2), anillo
-  verde + glow en la activa, dot de estado, tooltips glass, fade masks en el scroll.
-- **Delete flow**: sin auto-desarme (un timer de 4s se comÃ­a clicks lentos â€” por eso
-  "no deja borrar la primera"); right-click arma, click de nuevo elimina, Esc desarma.
-  `sanitize_accounts` permite lista VACÃA (adiÃ³s default zombi). Al eliminar la
-  cuenta en pantalla â†’ `close_account_webview` â†’ `auto_open_first_account` (abre la
-  primera restante o CREA "Cuenta 1" con QR). El welcome NUNCA es destino.
-- **Velocidad**: `list_accounts` responde AL INSTANTE con cachÃ© de session_state
-  (TTL 2.5s, refresco background con tokio::spawn) â€” el rail ya no espera 1.2s de
-  snapshots. Switch medido: <500ms con render completo (capturas).
-- **Promo card eliminado completo** del panel de chat vacÃ­o: patrones ampliados
-  (subtÃ­tulo "obtÃ©n funciones adicionales / get extra features", botÃ³n exacto
-  "Descargar/Download" solo si es hoja con texto â‰¤12 chars), zonas protegidas
-  (#pane-side, [role=listitem], [contenteditable], #main â€” NUNCA se tocan),
-  colapso de ancestros solo si TODOS los hijos son promo/icono sin texto.
-- El usuario probÃ³ EN VIVO durante el desarrollo: borrÃ³ todas las cuentas y la app
-  auto-creÃ³ "Cuenta 1" con QR (el flujo nuevo funcionando en producciÃ³n real).
+- **ICONO GRIS CON RAYO BLANCO (la queja principal)**: el `icons/icon.ico`
+  incrustado en el exe seguía siendo el ESTILO VIEJO (teal oscuro con rayo
+  blanco y aro verde) aunque los PNG pequeños ya eran el estilo aprobado —
+  una regeneración anterior dejó el ico sin tocar. El exe/taskbar/bandeja/
+  título/instalador/acceso directo muestran el ico → por eso el usuario seguía
+  viendo el viejo ("dentro se ve bien, fuera se ve feo"). FIX: `icon.ico`
+  reconstruido BYTE A BYTE desde los PNG aprobados (16/24/32/48/64/128/256
+  PNG-comprimidos, 7 frames); `icon.png` (512) + `Square*Logo.png` +
+  `StoreLogo.png` re-renderizados con la receta GDI+ del generador original
+  (squircle r=0.23, degradado vertical #34e877→#0f9e6c, brillo diagonal,
+  rayito #04231a al 60% — `scripts/regen-icons.ps1`; auditor
+  `tools/dump-ico.ps1`). VERIFICADO leyendo el HICON REAL de la ventana viva
+  (WM_GETICON + GetIconInfo + GetObject): 32x32 con rayito negro (samples:
+  99,222,154 / 4,35,26). NOTA: los assets android/ios (`ic_launcher*`) SIGUEN
+  viejos (no se usan en Windows; regenerar en el CI si algún día se apunta a
+  móvil), e `icon.icns` mac pendiente igual.
+- **CIERRE DEL DRAWER LENTO ("se tarda un poco la X")**: `toggle_drawer` al
+  cerrar SOLO cambiaba el flag; el webview se estacionaba cuando corría el
+  watchdog de geometría (cada 2 s) porque `set_focus` no dispara `Focused` con
+  la ventana ya enfocada. FIX: `relayout` directo dentro de `toggle_drawer`
+  (también cubre apertura). MEDIDO: estacionar a x=-24000 en **1 ms** (poll de
+  rects del child WRY_WEBVIEW contra POST /api/ui/drawer; antes: hasta 2 s).
+  La apertura sigue con destrucción+recreación (z-order encima; el usuario la
+  aprueba).
+- **RENOMBRAR CUENTAS BORRABA LO ESCRITO**: la sección Cuentas del drawer
+  reconstruía `#accountsList` con innerHTML="" cada 5 s → reset del valor en
+  el input + robo de foco justo mientras escribías (imposible terminar el
+  nombre — "pareciera que está constantemente actualizándose"). FIX en
+  `ui/drawer.html`: filas persistentes por id (`accountRows` Map); refresh
+  incremental que (1) elimina filas de cuentas ya inexistentes, (2) AGREGA
+  cuentas nuevas, (3) actualiza el label solo del input NO enfocado y NO
+  "dirty" (dataset.dirty lo marca el listener 'input'), (4) el mensaje de
+  "todavía no hay cuentas" ahora es persistente (`#noAccounts`). Verificado E2E en browser real contra el server
+  vivo (http://127.0.0.1:29977/drawer): escribir "Nombre QA de Prueba" → pasó
+  >1 tick de refresh sin perder texto ni foco; rename EXTERNO simultáneo NO lo
+  pisó; clic en el check → toast "Cuenta renombrada" + server persistió; tras
+  blur, la fila fusiona el label del servidor (account-6 restaurada a
+  "Cuenta 6").
+- Instalación en silencio del NSIS nuevo `/S` (exe 2,943,632 bytes; instalado
+  11,274,752 @ 2026-10-28 14:56) + `ie4uinit -show`. Tests 14/14.
+- Lección operativa: `Start-Process` con ruta RELATIVA falla ("no se puede
+  encontrar el archivo") aunque el CWD parezca correcto; usar la ruta
+  absoluta del instalador.
 
-## Estado de verificaciÃ³n (con capturas reales de ventana)
+## Estado de verificación (con evidencia real)
 
-- ARRANQUE VIRGEN: sin config â†’ auto-crea "Cuenta 1" (account-1) con QR
-  (dot naranja) â€” nunca "default" (captura n1).
-- TEMA: darkâ†’lightâ†’dark uniforme (capturas m2/m3, sin franjas mixtas);
-  drawer reconstruido en cada apertura (siempre encima, estado fresco).
-- SWITCH de cuentas: instantÃ¡neo por parking position-only (<350ms medidos).
-- "+": en flujo bajo la Ãºltima cuenta (sube/baja); crea y abre su QR al
-  instante; scroll del rail con rueda + indicador "hay mÃ¡s".
+- ARRANQUE VIRGEN: sin config → auto-crea "Cuenta 1" (account-1) con QR
+  (dot naranja) — nunca "default".
+- TEMA: dark→light→dark uniforme (el usuario lo spameó y "funciona perfecto").
+- SWITCH de cuentas: instantáneo por parking position-only (<350ms medidos).
+- "+" en flujo bajo la última cuenta; crea y abre su QR al instante; scroll
+  del rail con rueda + indicador "hay más".
 - DELETE por clic-derecho-armado con X roja visible + perfil borrado.
-- BANDEJA: "Mostrar <cuenta>" restaura la ventana; menÃº dinÃ¡mico (set_menu);
+- BANDEJA: "Mostrar <cuenta>" restaura la ventana; menú dinámico (set_menu);
   clic izquierdo en el icono trae la ventana; "Ocultar ventanas" oculta todo.
-- AUTOSTART: POST prefs autostart escribe/borra HKCU Run "Zapdude" âœ“.
-- LANDING del QR 100% limpio (banner de descarga eliminado por completo â€”
-  fix triple: flags por script, cleanText de tokens ic-*, collapse del card
-  por ancestro-promo con presupuesto de 400 chars).
-- Guard de instancia Ãºnica: 2Âª instancia sale sola; la original sigue viva.
+- AUTOSTART: POST prefs autostart escribe/borra HKCU Run "Zapdude" ✓.
+- LANDING del QR 100% limpio (banner de descarga eliminado por completo).
+- Guard de instancia única: 2ª instancia sale sola.
 - QUIT desde API: proceso termina limpio.
-- POP-OUT de llamadas: handler on_new_window instalado (comparte
-  environment/sesiÃ³n) â€” PENDIENTE prueba manual del usuario.
-- Tests 14/14. NSIS `Zapdude_1.0.0_x64-setup.exe` (2.81 MiB) instalado en
-  silencio en la mÃ¡quina del usuario.
+- POP-OUT de llamadas: handler on_new_window instalado — PENDIENTE prueba
+  manual del usuario.
+- ICONO (Round 7): ico re-ensamblado desde PNGs aprobados; verificado por
+  dump de frames + HICON de la ventana viva.
+- RENAME (Round 7): E2E real contra el server (browser driver).
+- DRAWER CLOSE (Round 7): 1 ms medido.
 
-## PENDIENTE (bughunt activo del usuario â€” atender feedback con capturas)
+## PENDIENTE (bughunt activo del usuario — atender feedback con capturas)
 
-- **Prueba EN VIVO del usuario** (prioridad): escanear QR, agregar varias
-  cuentas, scroll del rail, tema, bandeja (mostrar/ocultar/clic izquierdo),
-  borrado con X, pop-out de llamadas, autostart. Cualquier bug â†’ captura.
-- **RediseÃ±ar los eventos push** (notificaciones â†’ API/webhook) de forma
+- **Prueba EN VIVO del usuario** del binario nuevo: icono verde en
+  taskbar/bandeja (la caché de iconos puede pedir reiniciar el Explorador),
+  pop-out de llamadas, QR escaneado, bandeja completa.
+- **Rediseñar los eventos push** (notificaciones → API/webhook) de forma
   segura: hoy la API pasiva funciona (status/chats/send/open-chat) pero SIN
-  eventos espontÃ¡neos; idealmente CDP/WebMessageReceived o polling del host.
+  eventos espontáneos; idealmente CDP/WebMessageReceived o polling del host.
 - Iconos del rail estilo original (llamadas, favoritos, canales, etc.) y
-  tabs adicionales (Canales, favoritos, mute, descargas, donar) â€” decidir
+  tabs adicionales (Canales, favoritos, mute, descargas, donar) — decidir
   alcance cuando el usuario lo pida.
+- Regenerar los assets android/ios (`ic_launcher*`) e `icon.icns` (mac) al
+  estilo nuevo — en el CI al publicar.
 - Workflow CI (GitHub Actions) para compilar Windows/macOS/Linux gratis en
-  releases pÃºblicos (el usuario lo aprobÃ³ como plan para Mac â€” hacerlo tras
-  el push a GitHub). Regenerar icon.icns para mac en el CI.
-- Publicar en GitHub: repo sin crear aÃºn; pasos en el README/reportes
-  (create repo â†’ git remote add â†’ push main --tags â†’ release con el NSIS).
-- El tema NO toca la pÃ¡gina de WhatsApp (cada cuenta usa el tema de su
-  WhatsApp); si el usuario pide forzar el tema de WhatsApp, se harÃ­a vÃ­a
-  inyecciÃ³n en el localStorage de su UI.
+  releases públicos (el usuario lo aprobó como plan para Mac). Regenerar
+  icon.icns para mac en el CI.
+- Publicar en GitHub: repo sin crear aún.
 
-## Comandos Ãºtiles
+## Comandos útiles
 
 ```powershell
 # Build + tests + instalador
 cd C:\Users\PC\Desktop\Projects\Zapdude\zapdude-rs
-cargo build; cargo test
+cargo test
 .\tools\tauri.exe build --bundles nsis   # instalador en target\release\bundle\nsis
 
 # Matar instancias previas antes de rebuild (error os error 5 si no)
 Get-Process -Name zapdude | Stop-Process -Force
 
-# Limpiar SIEMPRE la env var de bisecciÃ³n antes de probar producciÃ³n
+# Limpiar SIEMPRE la env var de bisección antes de probar producción
 Remove-Item Env:ZAPDUKE_WEBVIEW_OPTS -ErrorAction SilentlyContinue
 
 # Smoke API
@@ -468,11 +420,15 @@ curl -X POST http://127.0.0.1:29977/api/accounts   # crear cuenta (como el "+")
 
 ## Notas de entorno
 
-- PowerShell: cargo/tauri escriben a stderr â†’ ruido `NativeCommandError` cosmÃ©tico;
-  capturar con `$o = cmd 2>&1; $LASTEXITCODE`.
-- **El mismo shell de PowerShell PERSISTE env vars entre comandos** â€” la env var de
-  debug `ZAPDUKE_WEBVIEW_OPTS` contaminÃ³ varias corridas; limpiarla SIEMPRE.
-- `curl.exe` (no alias de PS). Para POST con body JSON usar archivos o Invoke-RestMethod.
+- PowerShell: cargo/tauri escriben a stderr → ruido `NativeCommandError`
+  cosmético; capturar con `$o = cmd 2>&1; $LASTEXITCODE`.
+- **El mismo shell de PowerShell PERSISTE env vars entre comandos** — la env
+  var de debug `ZAPDUKE_WEBVIEW_OPTS` contaminó varias corridas; limpiarla SIEMPRE.
+- `curl.exe` (no alias de PS). Para POST con body JSON usar archivos o
+  Invoke-RestMethod.
+- `Start-Process` con ruta relativa FALLA aunque el CWD sea el correcto:
+  SIEMPRE ruta absoluta.
+- Los .ps1 en UTF-8: NUNCA usar em-dashes u otros no-ASCII dentro de strings
+  de PowerShell (parsing se rompe); español plano en comentarios.
 - git: `C:\Program Files\Git\bin\git.exe` (PATH puede no estar refrescado).
-- Usuario habla espaÃ±ol; responder en espaÃ±ol.
-
+- Usuario habla español; responder en español.

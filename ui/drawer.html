@@ -231,6 +231,7 @@
       <div class="card" id="accountsCard">
         <p class="desc">Ponle el nombre que quieras a cada cuenta (se ve en el menú y en la API). Clic derecho sobre el avatar la elimina.</p>
         <div id="accountsList"></div>
+        <p class="desc" id="noAccounts" style="margin: 0; display: none;">Todavía no hay cuentas.</p>
       </div>
     </div>
 
@@ -363,38 +364,65 @@
       return String(s).replace(/[&<>\"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
     }
 
-    async function loadAccounts() {
+    // Rows live across refreshes (keyed by account id). The list used to be
+    // rebuilt from scratch every 5s, which RESET the input you were typing
+    // in and stole its focus — you could not finish a name. Now a refresh
+    // never touches an input the user is editing.
+    const accountRows = new Map();
+
+    function buildRenameRow(a) {
+      const row = document.createElement("div");
+      row.className = "rename-row";
+      row.style.padding = "6px 0";
+      row.innerHTML =
+        `<input type="text" value="${esc(a.label)}" maxlength="40" spellcheck="false">` +
+        `<button class="save" title="Guardar nombre"><svg><use href="#i-check"/></svg></button>`;
+      const input = row.querySelector("input");
+      const entry = { row, input, label: a.label };
+
+      const commit = async () => {
+        const label = input.value.trim() || entry.label;
+        try {
+          await api("/api/accounts/" + encodeURIComponent(a.id) + "/rename", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ label })
+          });
+          entry.label = label;
+          input.value = label;
+          input.dataset.dirty = "";
+          toast("Cuenta renombrada");
+        } catch (e) { toast("No se pudo renombrar"); }
+      };
+      row.querySelector(".save").onclick = commit;
+      // Mark edits so refreshes leave THIS input alone until saved.
+      input.addEventListener("input", () => { input.dataset.dirty = "1"; });
+      input.onkeydown = (e) => { if (e.key === "Enter") row.querySelector(".save").click(); };
+      return entry;
+    }
+
+    async function refreshAccounts() {
       let data;
       try { data = await api("/api/accounts"); } catch (e) { return; }
+      const accounts = data.accounts || [];
       const list = $("accountsList");
-      list.innerHTML = "";
-      for (const a of (data.accounts || [])) {
-        const row = document.createElement("div");
-        row.className = "rename-row";
-        row.style.padding = "6px 0";
-        row.innerHTML =
-          `<input type="text" value="${esc(a.label)}" data-id="${esc(a.id)}" maxlength="40">` +
-          `<button class="save" title="Guardar nombre"><svg><use href="#i-check"/></svg></button>`;
-        row.querySelector(".save").onclick = async () => {
-          const input = row.querySelector("input");
-          const label = input.value.trim() || a.label;
-          try {
-            await api("/api/accounts/" + encodeURIComponent(a.id) + "/rename", {
-              method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ label })
-            });
-            input.value = label;
-            toast("Cuenta renombrada");
-          } catch (e) { toast("No se pudo renombrar"); }
-        };
-        row.querySelector("input").onkeydown = (e) => { if (e.key === "Enter") row.querySelector(".save").click(); };
-        list.appendChild(row);
+      $("noAccounts").style.display = accounts.length ? "none" : "block";
+
+      // Drop rows whose account no longer exists.
+      const keep = new Set(accounts.map(a => a.id));
+      for (const [id, entry] of Array.from(accountRows)) {
+        if (!keep.has(id)) { entry.row.remove(); accountRows.delete(id); }
       }
-      if (!(data.accounts || []).length) {
-        const p = document.createElement("p");
-        p.className = "desc"; p.style.margin = "0";
-        p.textContent = "Todavía no hay cuentas.";
-        list.appendChild(p);
+      // Add new rows in place, merge the rest WITHOUT touching edits.
+      for (const a of accounts) {
+        let entry = accountRows.get(a.id);
+        if (!entry) {
+          entry = buildRenameRow(a);
+          accountRows.set(a.id, entry);
+          list.appendChild(entry.row);
+        } else if (document.activeElement !== entry.input && entry.input.dataset.dirty !== "1") {
+          // Only untouched inputs follow the server (label renamed elsewhere).
+          if (a.label !== entry.label) { entry.label = a.label; entry.input.value = a.label; }
+        }
       }
     }
 
@@ -440,9 +468,10 @@
     document.addEventListener("contextmenu", (e) => e.preventDefault());
 
     (async () => {
-      await Promise.all([loadPrefs(), load(), loadAccounts()]);
-      // Refresh the accounts list while the drawer is open.
-      setInterval(loadAccounts, 5000);
+      await Promise.all([loadPrefs(), load(), refreshAccounts()]);
+      // Refresh the accounts list while the drawer is open — INCREMENTALLY:
+      // a row being edited keeps its text and focus (see refreshAccounts).
+      setInterval(refreshAccounts, 5000);
     })();
   </script>
 </body>

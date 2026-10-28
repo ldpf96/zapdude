@@ -71,3 +71,17 @@ El formato sigue de cerca Keep a Changelog; versionado SemVer.
   ("Downloadic-download"): `cleanText()` elimina tokens `ic-*` antes de los
   patrones exactos; el instalador diferido usa una marca por script para
   que un fallo del bridge no silencie al limpiador de banners.
+- **Icono de la app** (Round 7): el `icon.ico` incrustado en el exe seguía
+  siendo la versión vieja (teal oscuro con rayo blanco); reconstruido
+  byte a byte desde los PNG aprobados (verde con rayo negro) en 16/24/
+  32/48/64/128/256; `icon.png` (512) y las mosaicos UWP re-renderizados
+  con el mismo diseño (scripts/regen-icons.ps1). Verificado leyendo el
+  HICON real de la ventana en ejecución.
+- **Panel de opciones lento al cerrar** (Round 7): `toggle_drawer` no
+  realineaba en el cierre y esperaba al watchdog de geometría de 2 s;
+  ahora `relayout` corre en el mismo toggle (medido: 1 ms en estacionar).
+- **Renombrar cuentas borraba lo escrito** (Round 7): la lista del drawer
+  se reconstruía desde cero cada 5 s (reset del valor y robo del foco a
+  mitad de la escritura). Ahora el refresco es incremental por id, y jamás
+  toca un input enfocado o editado; fusiona cambios del servidor solo en
+  filas intactas.

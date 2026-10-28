@@ -85,10 +85,10 @@ pub fn toggle_drawer(app: &AppHandle) -> tauri::Result<()> {
     if let Ok(mut guard) = DRAWER_OPEN.lock() {
         *guard = open;
     }
+    let Some(window) = app.get_window("main") else {
+        return Ok(());
+    };
     if open {
-        let Some(window) = app.get_window("main") else {
-            return Ok(());
-        };
         let content = content_size(&window)?;
         let base = ui_base_url();
         let url: url::Url = format!("{base}/drawer").parse().expect("drawer URL must parse");
@@ -104,9 +104,11 @@ pub fn toggle_drawer(app: &AppHandle) -> tauri::Result<()> {
             LogicalSize::new(content.width, content.height),
         )?;
     }
-    if let Some(window) = app.get_window("main") {
-        let _ = window.set_focus();
-    }
+    // Park/show the drawer RIGHT NOW: closing used to wait for the 2s
+    // geometry watchdog (set_focus does not fire a Focused event when the
+    // window already has focus), which read as "the X takes forever".
+    relayout(&window);
+    let _ = window.set_focus();
     Ok(())
 }
 
