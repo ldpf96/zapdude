@@ -1,7 +1,7 @@
-# ESTADO DE LA SESIÓN — ZapZap (Rust)
+# ESTADO DE LA SESIÓN — ZapDude (Rust)
 
-> Documento de continuidad para agentes/compaction. Última actualización: 2026-10-28 (tarde).
-> SESIÓN DE DIAGNÓSTICO COMPLETADA: los 3 errores reportados por el usuario están CORREGIDOS y verificados con capturas de ventana (PrintWindow). Instalador NSIS regenerado.
+> Documento de continuidad para agentes/compaction. Última actualización: 2026-10-28 (noche).
+> La app se llama **ZapDude** (el usuario la renombró; mantener crédito a Rafael Tosta por ZapZap). Estado verificado con capturas de ventana. Instalador: `ZapDude_1.0.0_x64-setup.exe`.
 
 ## Qué es este proyecto
 
@@ -152,8 +152,33 @@ solo si TODOS los hijos quedan display:none computado, contenedores de ≤4 hijo
 - `4f09f4f` feat(shell): ZapZap-style single window with account rail and embedded WhatsApp Web
 - `2a847c5` fix(shell): serve UI from the loopback API (same-origin fetch), one-click account add works end to end
 - `4602fd9` docs: session status handoff (architecture, fixes, pending diagnostics)
-- (NUEVO, esta tanda) fix(shell): server-first startup, parked 1×1 visibility, safe
-  promo hider, deferred bridge install, single-instance + bind retry + NSIS hook
+- `a868fe9` fix(shell): server-first startup, parked 1x1 webviews, safe promo hider, single instance
+- `4ca7ad9` feat(ui): rename to ZapDude, premium rail with bolt avatars, delete-any-account flow
+
+## Round 2 (feedback del usuario tras probar: renombrado + premium + delete)
+
+- **Nombre**: ZapDude en TODAS partes (ventana "ZapDude", "Configuración — ZapDude",
+  tray "Salir de ZapDude", `productName` → instalador `ZapDude_1.0.0_x64-setup.exe`).
+  identifier/`app.zapzap.desktop` NO cambia (preserva config).
+- **Rail premium** (ui/rail.html): SVG symbol library (bolt/plus/gear/info — cero
+  emojis), logo squircle con glow que **abre la cuenta activa** (antes no hacía
+  nada), TODOS los avatares muestran el rayito (adiós letras/números D/2), anillo
+  verde + glow en la activa, dot de estado, tooltips glass, fade masks en el scroll.
+- **Delete flow**: sin auto-desarme (un timer de 4s se comía clicks lentos — por eso
+  "no deja borrar la primera"); right-click arma, click de nuevo elimina, Esc desarma.
+  `sanitize_accounts` permite lista VACÍA (adiós default zombi). Al eliminar la
+  cuenta en pantalla → `close_account_webview` → `auto_open_first_account` (abre la
+  primera restante o CREA "Cuenta 1" con QR). El welcome NUNCA es destino.
+- **Velocidad**: `list_accounts` responde AL INSTANTE con caché de session_state
+  (TTL 2.5s, refresco background con tokio::spawn) — el rail ya no espera 1.2s de
+  snapshots. Switch medido: <500ms con render completo (capturas).
+- **Promo card eliminado completo** del panel de chat vacío: patrones ampliados
+  (subtítulo "obtén funciones adicionales / get extra features", botón exacto
+  "Descargar/Download" solo si es hoja con texto ≤12 chars), zonas protegidas
+  (#pane-side, [role=listitem], [contenteditable], #main — NUNCA se tocan),
+  colapso de ancestros solo si TODOS los hijos son promo/icono sin texto.
+- El usuario probó EN VIVO durante el desarrollo: borró todas las cuentas y la app
+  auto-creó "Cuenta 1" con QR (el flujo nuevo funcionando en producción real).
 
 ## Estado de verificación (con capturas reales de ventana)
 
