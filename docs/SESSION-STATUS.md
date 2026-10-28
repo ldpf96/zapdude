@@ -7,7 +7,10 @@
 > https://github.com/ldpf96/zapdude/releases/tag/v1.2.0 with CI-built
 > artifacts (macOS .dmg aarch64 + x64, Windows NSIS). The app-wide
 > theme feature ships in this version. The repo is public, main matches
-> the release tag (fdc39dd).
+> the release tag (fdc39dd). Download site live at
+> https://ldpf96.github.io/zapdude-site/ (repo ldpf96/zapdude-site,
+> GitHub Pages from main, root folder; download buttons resolve the
+> latest release assets through the GitHub API; bilingual ES/EN).
 
 > The app is named **Zapdude** ("dude" lowercase, first letter
 > capital: it is exactly "Zapdude", NEVER "ZapDude").
