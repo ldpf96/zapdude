@@ -1,13 +1,13 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "ZapDude",
+  "productName": "Zapdude",
   "version": "1.0.0",
   "identifier": "app.zapzap.desktop",
   "build": {
     "frontendDist": "ui"
   },
   "app": {
-    "withGlobalTauri": true,
+    "withGlobalTauri": false,
     "windows": [],
     "security": {
       "csp": null

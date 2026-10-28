@@ -215,6 +215,66 @@ solo si TODOS los hijos quedan display:none computado, contenedores de ≤4 hijo
 - Config de la ventana "settings" y su endpoint /api/ui/settings quedan en el
   código pero la UI ya no los usa (todo vive en el drawer).
 
+## Round 4 (feedback 2: pantalla completa, lazy load, X visible, "Zapdude", publicar)
+
+- **Opciones a PANTALLA COMPLETA**: el drawer (logo del rail) ahora cubre TODO
+  el área de contenido (de DRAWER_WIDTH=380 a content.width), columna centrada
+  max-width 780px. El rail sigue visible para que el logo siga haciendo toggle.
+  DRAWER_WIDTH eliminado. Verificado con captura (f2-drawer-fullscreen).
+- **Carga diferida de cuentas** (velocidad con muchas cuentas): main.rs YA NO
+  crea un webview por cuenta al arranque — solo `auto_open_first_account`;
+  las demás cuentas crean su webview LAZY en el primer open
+  (`open_account_webview` → `ensure_account_webview` ya lo hace). Arranque
+  instantáneo con N cuentas. Trade-off: las cuentas de fondo no dan
+  notificaciones hasta abrirse una vez por sesión (documentado en README).
+- **X VISIBLE al armar con clic derecho**: rail.html añade symbol `#i-x` y
+  renderRail hace `use.setAttribute('href', armed ? '#i-x' : '#i-bolt')`.
+  Verificado con captura (h2-rail-crop: X roja clara sobre tile rojizo).
+- **Divisorias curvas estéticas** en el rail: `.divider.below` (bajo el logo)
+  y `.divider.above` (sobre el "+") — hairline verde con gradiente y borde
+  curvo (border-radius porcentual). Verificado en crop del rail.
+- **Menú contextual del navegador BLOQUEADO** en la UI: `contextmenu →
+  preventDefault` en rail/drawer/welcome (el clic derecho sobre el logo ya no
+  muestra el menú de página web). Los webviews de WhatsApp conservan SU menú.
+- **Borrar la última cuenta NO auto-crea una vacía**: nuevo
+  `open_first_remaining_or_welcome` (window.rs) — abre la primera cuenta
+  restante o muestra el welcome (que YA tiene botón "+ Agregar cuenta").
+  `close_account_webview` y `hide_account_content` lo usan. El arranque
+  (`auto_open_first_account`) SÍ crea "Cuenta 1" si no hay ninguna (flujo
+  ZapZap original intacto). Verificado: DELETE última → `accounts: []` +
+  welcome con CTA (captura h4). Luego se recreó account-1 para dejar la app
+  como estaba.
+- **Renombre a "Zapdude"** (Z mayúscula, resto minúscula — aclaración final
+  del usuario): productName, título de ventana, tray, healthz service,
+  status name, textos UI, README, NOTICE. El binario sigue `zapdude.exe`
+  (cargo name) y el identifier `app.zapzap.desktop` NO cambia.
+- **Limpieza de código muerto** (repo listo para publicar): eliminados
+  `app_commands.rs` (módulo + invoke_handler completo — la UI es 100% HTTP),
+  ventana "settings" (`create_settings_window`), rutas `/settings` y
+  `/api/ui/settings`, `ui/settings.html`, `withGlobalTauri: false`.
+- **FIX CRÍTICO del hider de banners (banner del QR)**: causa raíz TRIPLE —
+  (1) el instalador diferido envolvía bridge+hider en UN SOLO eval con la
+  marca `__zapZapApiV1`: si el bridge ya estaba marcado, el hider no se
+  instalaba nunca. Ahora `deferred_scripts()` devuelve pares (flag, script)
+  y page_ops instala cada uno con SU flag y SU try/catch. (2) El botón del
+  promo card es un BUTTON cuyo textContent es "Downloadic-download" (el svg
+  interno trae un title "ic-download" que se concatena al texto) → nuevo
+  `cleanText()` que elimina tokens `ic-*` antes de los patrones exactos.
+  (3) El card completo se oculta con `hideLandingPromoCard()`: busca el
+  botón "Download"/"Descargar" (texto limpio) y sube al ancestro MÁS CHICO
+  que contenga texto promo con presupuesto de 400 chars — el card del QR
+  (sin texto promo) jamás matchea. Guardias: solo corre sin `#pane-side`/
+  `#main` VISIBLES (WhatsApp pre-renderiza #main oculto en el landing — la
+  existencia no basta; usar getClientRects) y los botones ya ocultos SÍ se
+  siguen (son la pista hacia el card — el barrido genérico los oculta
+  primero). Diagnóstico vía beacon temporal + /api/events (cadena de
+  ancestros del botón). Verificado con captura g8: landing 100% limpio,
+  QR centrado, card del QR intacto.
+- NOTA de operación: una edición del config con PowerShell `-replace` tocó
+  TODOS los `"enabled":true` (también el de la cuenta) — restaurado a mano;
+  cuidado con replace global en JSON.
+- `withGlobalTauri: false` (no se usa IPC).
+
 ## Round 2 (feedback del usuario tras probar: renombrado + premium + delete)
 
 - **Nombre**: ZapDude en TODAS partes (ventana "ZapDude", "Configuración — ZapDude",

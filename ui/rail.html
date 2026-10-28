@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>ZapDude</title>
+  <title>Zapdude</title>
   <style>
     :root {
       --bg-top: #0d1f19;
@@ -44,6 +44,14 @@
     .logo:active { transform: scale(0.97); }
     .logo svg { width: 22px; height: 22px; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.25)); }
     .logo.open { box-shadow: 0 0 0 2px rgba(46,224,111,0.55), 0 4px 18px rgba(46,224,111,0.5), inset 0 1px 0 rgba(255,255,255,0.35); }
+
+    /* ---- Delicate curved dividers (purely aesthetic) ---- */
+    .divider {
+      width: 44px; height: 3px; flex-shrink: 0; border: none; border-radius: 0 0 50% 50% / 0 0 100% 100%;
+      background: linear-gradient(90deg, rgba(46,224,111,0) 0%, rgba(46,224,111,0.38) 50%, rgba(46,224,111,0) 100%);
+    }
+    .divider.below { margin-top: 10px; border-radius: 0 0 50% 50% / 0 0 100% 100%; }
+    .divider.above { margin-bottom: 12px; border-radius: 50% 50% 0 0 / 100% 100% 0 0; }
 
     .rail-scroll {
       flex: 1; overflow-y: auto; width: 100%;
@@ -138,6 +146,9 @@
       <symbol id="i-plus" viewBox="0 0 24 24">
         <path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" d="M12 5v14M5 12h14"/>
       </symbol>
+      <symbol id="i-x" viewBox="0 0 24 24">
+        <path fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>
+      </symbol>
     </defs>
   </svg>
 
@@ -145,10 +156,14 @@
 
   <div class="logo" id="logo">
     <svg class="icon"><use href="#i-bolt"/></svg>
-    <span class="tooltip">Opciones ZapDude</span>
+    <span class="tooltip">Opciones Zapdude</span>
   </div>
 
+  <div class="divider below" aria-hidden="true"></div>
+
   <div class="rail-scroll" id="rail"></div>
+
+  <div class="divider above" aria-hidden="true"></div>
 
   <button class="add-btn" id="addBtn">
     <svg class="icon"><use href="#i-plus"/></svg>
@@ -242,6 +257,7 @@
           rail.insertBefore(el, rail.children[index] || null);
         }
         el.className = "avatar" + (a.active ? " active" : "") + (isArmed ? " armed" : "");
+        el.querySelector("use").setAttribute("href", isArmed ? "#i-x" : "#i-bolt");
         el.querySelector(".dot").className = "dot " + state;
         const tip = el.querySelector(".tooltip");
         tip.textContent = isArmed ? "Clic de nuevo para eliminar" : `${a.label} · ${stateLabel}`;
@@ -266,6 +282,9 @@
     };
 
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") disarm(); });
+
+    // Native-app feel: no browser context menu on the shell UI.
+    document.addEventListener("contextmenu", (e) => e.preventDefault());
 
     (async () => {
       await loadRail();

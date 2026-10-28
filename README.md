@@ -1,41 +1,58 @@
-# ZapZap (Rust)
+# Zapdude
 
-Cliente de escritorio de WhatsApp Web escrito en **Rust** (Tauri 2 + WebView2),
-fork/de reescritura de [ZapZap](https://github.com/rafatosta/zapzap) de
-**Rafael Tosta** (ver `NOTICE.md`, licencia **AGPL-3.0**).
+**Zapdude** es un cliente de escritorio de WhatsApp Web multi-cuenta para
+Windows, escrito en **Rust** (Tauri 2 + WebView2). Todas tus cuentas de
+WhatsApp en una sola ventana, con una API local para que personas y agentes
+de IA puedan operarlas.
 
-Requiere Windows 10/11 (WebView2, incluido de fábrica en Windows 11).
+Es una reescritura completa en Rust del cliente
+[ZapZap](https://github.com/rafatosta/zapzap) de **Rafael Tosta** (Python/GTK).
+La idea original es suya — ver [`NOTICE.md`](NOTICE.md). Este fork se
+distribuye bajo **AGPL-3.0**.
 
-## Qué hace
+![Windows 10/11](https://img.shields.io/badge/Windows-10%2F11-0078d7) ![Rust](https://img.shields.io/badge/Rust-stable-dea584) ![Tauri 2](https://img.shields.io/badge/Tauri-2-FFC131) ![Licencia](https://img.shields.io/badge/Licencia-AGPL--3.0-blue)
 
-- **Multi-cuenta (vital):** una ventana por cuenta de WhatsApp con
-  **perfil WebView2 aislado** (datos en `%APPDATA%\app.zapzap.desktop\webview\<id>`).
-  Todas las cuentas viven en la misma aplicación y reciben notificaciones
-  aunque sus ventanas estén ocultas (cerrar la ventana solo la oculta).
-- **Bandeja del sistema:** menú con "Mostrar <cuenta>" por cuenta,
-  "Hide all windows" y "Exit ZapZap".
-- **Llamadas de WhatsApp Web:** identidad alineada a Chrome estable
-  (UA + parche de *client hints* en JS) y permisos ya aprobados para
-  Micrófono, Cámara, Compartir pantalla, Notificaciones y Portapapeles,
-  para que los puntos de entrada de llamada de voz/vídeo/pantalla
-  funcionen como en el navegador.
-- **API local para humanos y agentes de IA** (HTTP en loopback,
-  `X-API-Key`), con eventos en vivo (SSE o *polling*) y webhook opcional
-  firmado con HMAC.
+## Características
 
-## Instalador Windows (NSIS)
+- **Multi-cuenta vital** — rail lateral estilo ZapZap: logo, un avatar por
+  cuenta y "+". Agregar una cuenta no pide formularios: abre su QR al
+  instante. Cada cuenta tiene un **perfil WebView2 aislado**, así que las
+  sesiones no se mezclan.
+- **Cambio de cuenta instantáneo** — las cuentas inactivas se "aparcan"
+  fuera de la ventana a tamaño completo y el cambio es solo un movimiento de
+  posición: WhatsApp no se re-renderiza (medido: pintado completo en <350 ms).
+- **Arranque rápido con N cuentas** — solo se carga WhatsApp Web de la
+  cuenta que abres; las demás nacen cuando las usas por primera vez.
+- **Opciones a pantalla completa** (botón del logo): configuración de la API
+  con estado en vivo, documentación del agente de IA y "Acerca de" — todo en
+  la misma ventana, sin ventanas auxiliares.
+- **Bandeja del sistema** con "Mostrar <cuenta>" por cuenta, ocultar todo y
+  salir.
+- **Llamadas de WhatsApp Web** — identidad Chrome estable (UA + parche de
+  *client hints* en JS) y permisos aprobados para Micrófono, Cámara,
+  Compartir pantalla, Notificaciones y Portapapeles.
+- **Limpieza de promos** — el banner "Download WhatsApp for Windows" del
+  landing y la tarjeta de descarga del panel vacío se eliminan solos.
+- **Sin terminal, sin fricción** — `windows_subsystem`, ventana única que se
+  oculta a la bandeja, instancia única (mutex), instalador NSIS.
 
-1. Genera el instalador (o descarga `target/release/bundle/nsis/…-setup.exe`):
-   ```powershell
-   cd zapdude-rs
-   .\tools\tauri.exe build --bundles nsis
-   ```
-2. Ejecuta el `.exe` del instalador. Modo `currentUser` (no necesita admin),
-   con selector de idioma (inglés/español).
+## Instalación (Windows 10/11)
+
+Descarga `Zapdude_1.0.0_x64-setup.exe` (releases) y ejecútalo. Modo
+`currentUser` (no requiere admin), selector de idioma español/inglés. Al
+desinstalar se borran también los datos de la app.
+
+O compílalo tú mismo:
+
+```powershell
+cd zapdude-rs
+.\tools\tauri.exe build --bundles nsis   # instalador en target\release\bundle\nsis
+```
 
 ## Configuración
 
-`%APPDATA%\app.zapzap.desktop\config.json` (se crea solo en el primer arranque):
+`%APPDATA%\app.zapzap.desktop\config.json` (se crea solo en el primer
+arranque):
 
 ```json
 {
@@ -48,35 +65,35 @@ Requiere Windows 10/11 (WebView2, incluido de fábrica en Windows 11).
     "webhookSecret": ""
   },
   "accounts": [
-    { "id": "default", "label": "default", "enabled": true },
-    { "id": "work",    "label": "Trabajo", "enabled": true }
+    { "id": "trabajo", "label": "Trabajo", "enabled": true }
   ]
 }
 ```
 
-- **API desactivada por defecto** (privacidad): pon `"enabled": true` y reinicia.
-- La `apiKey` se genera aleatoria al primer arranque; câmbiala si quieres.
+- **API desactivada por defecto** (privacidad): actívala desde las opciones
+  (logo → Configuración API) o con `"enabled": true`.
+- La `apiKey` se genera aleatoria al primer arranque.
 - `exposeNetwork: true` escucha en `0.0.0.0` (¡solo si sabes lo que haces!).
-- Cada cuenta de `accounts` abre su propia ventana/perfil al iniciar.
-  Los `id` admiten letras, números, `-` y `_`.
 
 ## API local (v1)
 
-Base: `http://127.0.0.1:<puerto>/api` · Autenticación: cabecera
-`X-API-Key: <clave>` o `Authorization: Bearer <clave>`.
-Límites: 60 peticiones/minuto, cuerpo ≤ 1 MB.
+Base `http://127.0.0.1:<puerto>/api` · autenticación `X-API-Key` (o
+`Authorization: Bearer`) · 60 peticiones/minuto · cuerpo ≤ 1 MB.
 
 | Método | Ruta | Descripción |
 |---|---|---|
 | GET  | `/api/healthz` | Sondeo de disponibilidad (sin clave) |
-| GET  | `/api/status?account=<id>` | App + página + `accounts[]` de la cuenta |
-| GET  | `/api/accounts` | Cuentas configuradas |
-| POST | `/api/open-chat` | `{"account":"work","phone":"34612345678","text":"Hola"}` |
-| POST | `/api/message` | `{"account":"work","phone":"34612…","message":"Texto"}` |
+| GET  | `/api/accounts` | Cuentas configuradas y su estado |
+| POST | `/api/accounts` | Agrega cuenta y abre su QR |
+| DELETE | `/api/accounts/{id}` | Elimina una cuenta (y su perfil) |
+| POST | `/api/accounts/{id}/open` | Muestra esa cuenta en la ventana |
+| GET  | `/api/status?account=<id>` | App + página + `accounts[]` |
+| POST | `/api/open-chat` | `{"account","phone","text?"}` |
+| POST | `/api/message` | `{"account","phone","message"}` |
 | GET  | `/api/chats?limit=20&account=<id>` | Lista visible de chats (best-effort) |
-| GET  | `/api/events?since=<id>` | Historial reciente de eventos (todas las cuentas) |
-| SSE  | `/api/events/stream` | Eventos en vivo para agentes/consumidores |
-| GET/POST | `/api/webhook` | Receptor HTTPS de eventos (firmado `X-ZapZap-Signature: sha256=…`) |
+| GET  | `/api/events?since=<id>` | Historial reciente de eventos |
+| SSE  | `/api/events/stream` | Eventos en vivo |
+| GET/POST | `/api/webhook` | Receptor HTTPS de eventos (firma HMAC) |
 
 Ejemplos:
 
@@ -84,47 +101,66 @@ Ejemplos:
 # ¿Está viva la API?
 curl http://127.0.0.1:29977/api/healthz
 
-# Estado completo (enums de sesión: detecting | scan_qr | logged_in)
-curl -H "X-API-Key: $KEY" "http://127.0.0.1:29977/api/status?account=default"
+# Estado (session_state: detecting | scan_qr | logged_in)
+curl -H "X-API-Key: $KEY" "http://127.0.0.1:29977/api/status"
 
-# Enviar mensaje desde la cuenta "work"
+# Enviar mensaje
 curl -X POST -H "X-API-Key: $KEY" -H "Content-Type: application/json" \
-  -d '{"account":"work","phone":"34612345678","message":"Hola desde Rust"}' \
+  -d '{"account":"trabajo","phone":"34612345678","message":"Hola desde Rust"}' \
   http://127.0.0.1:29977/api/message
 
 # Eventos en vivo (SSE)
 curl -N -H "X-API-Key: $KEY" http://127.0.0.1:29977/api/events/stream
 ```
 
-Los eventos entrantes (mensajes/notificaciones del bridge de página) llevan
-siempre el campo `"account"` indicando la cuenta de origen.
+## Cómo funciona
 
-## Limitaciones conocidas
+Una sola ventana Tauri aloja varios webviews: el **rail** (76 px), el panel
+de **opciones** (pantalla completa, creado bajo demanda), un *backdrop* de
+bienvenida y un webview de WhatsApp Web por cuenta (perfiles WebView2
+aislados en `%APPDATA%\app.zapzap.desktop\webview\<id>`).
 
-- WhatsApp no publica API oficial: la automatización usa la página real y es
-  **best-effort** ante cambios de su interfaz (los errores degradan a respuestas
-  de API, nunca rompen la app).
-- Las cabeceras HTTP `Sec-CH-UA` no se pueden reescribir desde Tauri (solo el
-  contenido de `tauri://`); la identidad Chrome alineada se aplica en JS, que es
-  lo que los *feature gates* de llamadas de WhatsApp Web leen. En casos raros
-  WhatsApp puede pedir "actualizar".
-- Compartir pantalla muestra el selector nativo de Windows (comportamiento
-  esperado).
-- Sin sesión iniciada el estado es `scan_qr`: escanea el QR en la ventana de la
-  cuenta correspondiente.
+Toda la interfaz (rail/opciones/bienvenida) la sirve el propio **servidor
+API de loopback** (mismo origen): los `fetch` de la UI nunca sufren CORS ni
+problemas de `file://`, y no se usa IPC de Tauri para la UI.
+
+La automatización (leer chats, abrir conversaciones, enviar mensajes) usa un
+bridge residente inyectado en la página con transporte por *beacon* en el
+hash del URL; cada fallo degrada a un error de API sin romper la app.
+
+```
+zapdude-rs/
+├── src/window.rs      # shell multi-webview + bandeja + ciclo de vida
+├── src/api/           # servidor axum, protocolo, bridge de página, eventos
+├── scripts/           # client-hints, bridge residente, limpieza de promos
+├── ui/                # rail, opciones (drawer) y bienvenida
+├── windows/           # hooks NSIS (limpieza al desinstalar)
+└── docs/              # arquitectura y notas de sesión
+```
 
 ## Desarrollo
 
 ```powershell
-cargo run          # ejecutar en debug
-cargo test         # 14 pruebas unitarias
-.\tools\tauri.exe build --bundles nsis   # release + instalador
+cargo run                               # debug
+cargo test                              # pruebas unitarias
+.\tools\tauri.exe build --bundles nsis  # release + instalador
 ```
 
-Estructura: `src/window.rs` (multi-ventana+bandeja), `src/api/` (servidor axum,
-bridge de página JS, protocolo), `scripts/` (bridge residente + client-hints),
-`docs/architecture.md` (arquitectura detallada).
+Requiere el Rust toolchain estable y el WebView2 Runtime (incluido de
+fábrica en Windows 11).
+
+## Limitaciones conocidas
+
+- WhatsApp no publica una API oficial: la automatización usa la página real
+  y es **best-effort** ante cambios de su interfaz.
+- Las cabeceras HTTP `Sec-CH-UA` no se pueden reescribir desde Tauri; la
+  identidad Chrome se aplica en JS, que es lo que los *feature gates* de
+  llamadas de WhatsApp Web leen.
+- Las cuentas de fondo se cargan al primer uso: sus notificaciones en vivo
+  empiezan cuando se abren por primera vez en la sesión.
 
 ## Licencia
 
-AGPL-3.0 — ver `LICENSE` y `NOTICE.md` (crédito obligatorio a Rafael Tosta).
+**AGPL-3.0** — ver [`LICENSE`](LICENSE) y [`NOTICE.md`](NOTICE.md)
+(crédito obligatorio a Rafael Tosta, autor del ZapZap original).
+Zapdude no es un producto oficial de WhatsApp ni de Meta.

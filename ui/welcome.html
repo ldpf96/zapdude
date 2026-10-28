@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>ZapDude</title>
+  <title>Zapdude</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { height: 100%; }
@@ -32,7 +32,7 @@
 </head>
 <body>
   <div class="logo">⚡</div>
-  <h1>ZapDude</h1>
+  <h1>Zapdude</h1>
   <p id="msg">Todas tus cuentas de WhatsApp en una sola ventana, con una API local para agentes de IA.</p>
   <button class="add" id="addBtn">+ Agregar cuenta</button>
 
@@ -43,6 +43,9 @@
       if (!res.ok) throw new Error("HTTP " + res.status);
       return res.json();
     }
+
+    // Native-app feel: no browser context menu on the shell UI.
+    document.addEventListener("contextmenu", (e) => e.preventDefault());
 
     document.getElementById("addBtn").onclick = async (ev) => {
       ev.currentTarget.disabled = true;

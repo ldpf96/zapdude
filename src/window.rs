@@ -56,10 +56,6 @@ const HIDE_DOWNLOAD_BANNERS_SCRIPT: &str = include_str!("../scripts/hide_downloa
 /// Logical width of the left rail. The content area gets the rest.
 pub const RAIL_WIDTH: f64 = 76.0;
 
-/// Width of the options drawer that slides over the content when the brand
-/// logo is clicked.
-pub const DRAWER_WIDTH: f64 = 380.0;
-
 /// X position where inactive content webviews park: FULL size, completely
 /// outside the visible client area. Parking by POSITION (never by size and
 /// never by hide()) keeps WhatsApp's layout warm — switching accounts is a
@@ -113,23 +109,27 @@ fn startup_scripts() -> Vec<String> {
 }
 
 /// Scripts installed shortly AFTER the document loads (via eval from the
-/// beacon poller). The automation bridge and the cosmetic promo hider do
-/// not need to run before WhatsApp's own scripts, and deferring them keeps
-/// the document-start injection small enough that WebView2 keeps painting.
-pub fn deferred_scripts() -> String {
+/// beacon poller) as `(idempotency-flag, script)` pairs. Each script gets
+/// its OWN flag and its OWN try/catch: a shared wrapper meant one failing
+/// script silently disabled the other forever (the download-banner hider
+/// was lost this way whenever the bridge had already set its flag).
+/// The automation bridge and the cosmetic promo hider do not need to run
+/// before WhatsApp's own scripts, and deferring them keeps the
+/// document-start injection small enough that WebView2 keeps painting.
+pub fn deferred_scripts() -> Vec<(&'static str, &'static str)> {
     let opts = std::env::var("ZAPDUKE_WEBVIEW_OPTS").unwrap_or_else(|_| "all".to_string());
     let want = |name: &str| {
         !opts.contains("scripts1") && !opts.contains("scripts2") && !opts.contains("scripts3")
             || opts.contains(name)
     };
-    let mut body = String::new();
+    let mut pairs = Vec::new();
     if want("scripts2") {
-        body.push_str(API_PAGE_BRIDGE_SCRIPT);
+        pairs.push(("__zapZapApiV1", API_PAGE_BRIDGE_SCRIPT));
     }
     if want("scripts3") {
-        body.push_str(HIDE_DOWNLOAD_BANNERS_SCRIPT);
+        pairs.push(("__zapdudeHidePromos", HIDE_DOWNLOAD_BANNERS_SCRIPT));
     }
-    body
+    pairs
 }
 
 /// Permissions WhatsApp Web needs for calls, screen sharing and clipboard.
@@ -238,14 +238,16 @@ fn relayout(window: &Window<Wry>) {
             )
         } else if label == "drawer" {
             if drawer_open {
+                // Full-screen options: the panel covers the WHOLE content area
+                // (the rail stays visible so the brand logo keeps toggling).
                 (
                     LogicalPosition::new(RAIL_WIDTH, 0.0_f64),
-                    LogicalSize::new(DRAWER_WIDTH, content.height),
+                    LogicalSize::new(content.width, content.height),
                 )
             } else {
                 (
                     LogicalPosition::new(PARKED_X, 0.0_f64),
-                    LogicalSize::new(DRAWER_WIDTH, content.height),
+                    LogicalSize::new(content.width, content.height),
                 )
             }
         } else if active.as_deref() == Some(label.as_str()) {
@@ -268,7 +270,7 @@ fn relayout(window: &Window<Wry>) {
 /// The first account is opened right after by `auto_open_first_account`.
 pub fn create_shell(app: &AppHandle) -> tauri::Result<()> {
     let window = tauri::window::Window::builder(app, "main")
-        .title("ZapDude")
+        .title("Zapdude")
         .inner_size(1180.0_f64, 780.0_f64)
         .min_inner_size(760.0_f64, 560.0_f64)
         .resizable(true)
@@ -418,13 +420,13 @@ pub fn open_account_webview(
     show_content(app, &account_webview_label(&account.id))
 }
 
-/// Toggle the options drawer (brand-logo click): a panel over the content
-/// area with the API settings, AI-agent docs and About. Created lazily on
-/// first use so it stacks ABOVE the account webviews.
+/// Toggle the options screen (brand-logo click): a FULL-SCREEN panel over
+/// the content area with the API settings, AI-agent docs and About — in the
+/// SAME window (no auxiliary window). Created lazily on first use so it
+/// stacks ABOVE the account webviews.
 pub fn toggle_drawer(app: &AppHandle) -> tauri::Result<()> {
     let open_now = DRAWER_OPEN.lock().map(|guard| *guard).unwrap_or(false);
     let open = !open_now;
-    eprintln!("zapdude: drawer toggle -> {} (was {})", open, open_now);
     if let Ok(mut guard) = DRAWER_OPEN.lock() {
         *guard = open;
     }
@@ -435,33 +437,53 @@ pub fn toggle_drawer(app: &AppHandle) -> tauri::Result<()> {
         let content = content_size(&window)?;
         let base = ui_base_url();
         let url: url::Url = format!("{base}/drawer").parse().expect("drawer URL must parse");
-        let created = window.add_child(
+        // Born covering the whole content area (the rail strip stays free).
+        window.add_child(
             WebviewBuilder::new("drawer", WebviewUrl::External(url)),
             LogicalPosition::new(RAIL_WIDTH, 0.0_f64),
-            LogicalSize::new(DRAWER_WIDTH, content.height),
-        );
-        eprintln!("zapdude: drawer created lazily -> {}", created.is_ok());
+            LogicalSize::new(content.width, content.height),
+        )?;
     }
     if let Some(window) = app.get_window("main") {
         relayout(&window);
-        let labels: Vec<String> = window.webviews().iter().map(|w| w.label().to_string()).collect();
-        eprintln!("zapdude: webviews after relayout: {:?}", labels);
         let _ = window.set_focus();
     }
     Ok(())
 }
 
-/// Return to a sensible view after an account is hidden: the first account
-/// (created fresh if none remains) — the welcome backdrop is never the
-/// destination.
+/// After an account is hidden or removed: open the FIRST REMAINING account,
+/// or fall back to the branded welcome screen (which has an explicit
+/// "Agregar cuenta" button). Never auto-creates an empty account here —
+/// deleting the last one intentionally lands on the welcome screen.
+fn open_first_remaining_or_welcome(app: &AppHandle) {
+    let Some(shared) = crate::SHARED.get() else {
+        return;
+    };
+    let accounts = shared.settings.current_accounts();
+    let handle = app.clone();
+    if let Some(first) = accounts.into_iter().find(|account| account.enabled) {
+        std::thread::spawn(move || {
+            if let Err(err) = open_account_webview(&handle, &first) {
+                eprintln!("zapdude: could not open account '{}': {}", first.id, err);
+            }
+        });
+    } else {
+        let _ = show_content(app, "welcome");
+    }
+}
+
+/// Return to a sensible view after an account is hidden: the first remaining
+/// account — or the welcome screen with its "Agregar cuenta" button (no
+/// auto-created empty account).
 pub fn hide_account_content(app: &AppHandle, _id: &str) -> tauri::Result<()> {
-    auto_open_first_account(app);
+    open_first_remaining_or_welcome(app);
     Ok(())
 }
 
 /// Close an account webview entirely (used when removing the account).
 /// If the removed account was on screen, fall through to the first remaining
-/// account (auto-created when none remains) instead of the welcome backdrop.
+/// account, or to the welcome screen when none remains (no empty account is
+/// auto-created — the user asked for that explicitly).
 pub fn close_account_webview(app: &AppHandle, id: &str) {
     let label = account_webview_label(id);
     let was_active = active_content().as_deref() == Some(label.as_str());
@@ -469,7 +491,7 @@ pub fn close_account_webview(app: &AppHandle, id: &str) {
         let _ = webview.close();
     }
     if was_active {
-        auto_open_first_account(app);
+        open_first_remaining_or_welcome(app);
     }
 }
 
@@ -494,26 +516,6 @@ pub fn reload_shell_ui(app: &AppHandle) {
     }
 }
 
-/// Open (or focus) the settings window on the requested tab.
-/// The tab travels as a query param (`?tab=api|agent|about`) which the
-/// server-served page reads natively.
-pub fn create_settings_window(app: &AppHandle, tab: &str) -> tauri::Result<()> {
-    let safe_tab: String = tab
-        .chars()
-        .filter(|c| c.is_ascii_alphanumeric() || *c == '_')
-        .collect();
-    let url: url::Url = format!("{}/settings?tab={}", ui_base_url(), safe_tab)
-        .parse()
-        .expect("settings URL must parse");
-    tauri::webview::WebviewWindowBuilder::new(app, "settings", WebviewUrl::External(url))
-        .title("Configuración — ZapDude")
-        .inner_size(720.0_f64, 660.0_f64)
-        .min_inner_size(560.0_f64, 500.0_f64)
-        .resizable(true)
-        .build()?;
-    Ok(())
-}
-
 /// Tray: quick account switching, hide-all and exit (closes the whole app).
 pub fn initialize_tray(app: &App) {
     let build = move || -> tauri::Result<()> {
@@ -532,7 +534,7 @@ pub fn initialize_tray(app: &App) {
         }
         let separator = PredefinedMenuItem::separator(app)?;
         let hide_all = MenuItem::with_id(app, "hide-all", "Ocultar ventanas", true, None::<&str>)?;
-        let quit = MenuItem::with_id(app, "quit", "Salir de ZapDude", true, None::<&str>)?;
+        let quit = MenuItem::with_id(app, "quit", "Salir de Zapdude", true, None::<&str>)?;
         let menu_items: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> = item_pool
             .iter()
             .map(|item| item as &dyn tauri::menu::IsMenuItem<tauri::Wry>)

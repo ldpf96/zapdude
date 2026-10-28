@@ -89,22 +89,27 @@ pub fn install(
             // times (QR refresh, reconnects), and a light idempotent eval
             // every DEFER_INSTALL_EVERY_TICKS keeps them present without
             // touching the page-start injection (which must stay small —
-            // see `startup_scripts`).
-            let deferred = crate::window::deferred_scripts();
-            let install_expression = if deferred.is_empty() {
-                String::new()
-            } else {
-                format!(
-                    "if (window === window.top && !window.__zapZapApiV1) {{ try {{ {} }} catch (_e) {{}} }}",
-                    deferred
-                )
-            };
+            // see `startup_scripts`). Each script is guarded by its OWN
+            // flag and try/catch so one failure can never silence the
+            // other (that is exactly how the banner hider got lost).
+            let install_expressions: Vec<String> = crate::window::deferred_scripts()
+                .into_iter()
+                .map(|(flag, script)| {
+                    format!(
+                        "if (window === window.top && !window.{flag}) {{ try {{ {script} }} catch (_e) {{}} }}",
+                        flag = flag,
+                        script = script
+                    )
+                })
+                .collect();
             let mut ticks: u64 = 0;
             loop {
                 std::thread::sleep(std::time::Duration::from_millis(POLL_INTERVAL_MS));
                 ticks = ticks.wrapping_add(1);
-                if !install_expression.is_empty() && ticks % DEFER_INSTALL_EVERY_TICKS == 0 {
-                    let _ = poller.window.eval(&install_expression);
+                if ticks % DEFER_INSTALL_EVERY_TICKS == 0 {
+                    for expression in &install_expressions {
+                        let _ = poller.window.eval(expression);
+                    }
                 }
                 if let Err(_failure) = poller.poll_beacons() {
                     // Temporary window/state errors are ignored; the loop

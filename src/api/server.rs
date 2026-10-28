@@ -46,10 +46,9 @@ use super::protocol::{
 use crate::config::{self, AccountConfig, SettingsState};
 
 /// The shell UI is served BY this server (same origin as the API), so the
-/// rail/welcome/settings pages never suffer CORS or path issues.
+/// rail/welcome/drawer pages never suffer CORS or path issues.
 const RAIL_HTML: &str = include_str!("../../ui/rail.html");
 const WELCOME_HTML: &str = include_str!("../../ui/welcome.html");
-const SETTINGS_HTML: &str = include_str!("../../ui/settings.html");
 const DRAWER_HTML: &str = include_str!("../../ui/drawer.html");
 
 /// Holder guarded by a Mutex so the server can be stopped and restarted
@@ -250,7 +249,7 @@ fn require_api_enabled(state: &ApiState) -> Result<(), ApiError> {
         Ok(())
     } else {
         Err(ApiError::unavailable(
-            "API is disabled — enable it in ZapZap settings",
+            "API is disabled — enable it in Zapdude settings",
         ))
     }
 }
@@ -260,11 +259,9 @@ fn router(state: ApiState) -> Router {
         // --- Shell UI (same origin as the API: fetch always works) ---
         .route("/", get(serve_rail))
         .route("/welcome", get(serve_welcome))
-        .route("/settings", get(serve_settings))
         .route("/drawer", get(serve_drawer))
         .route("/api/ui/quit", post(ui_quit))
         .route("/api/ui/drawer", post(ui_toggle_drawer))
-        .route("/api/ui/settings", post(ui_open_settings))
         // --- Management endpoints (no auth, used by the shell UI + local tools) ---
         .route("/api/healthz", get(healthz))
         .route("/api/config", get(get_config).post(post_config))
@@ -348,10 +345,6 @@ async fn serve_welcome() -> impl IntoResponse {
     axum::response::Html(WELCOME_HTML)
 }
 
-async fn serve_settings() -> impl IntoResponse {
-    axum::response::Html(SETTINGS_HTML)
-}
-
 async fn serve_drawer() -> impl IntoResponse {
     axum::response::Html(DRAWER_HTML)
 }
@@ -401,23 +394,6 @@ async fn ui_quit() -> (StatusCode, Json<Value>) {
             handle.exit(0);
         });
         json_ok(json!({ "quitting": true }))
-    } else {
-        json_error(&ApiError::internal("app handle not available"))
-    }
-}
-
-/// Open (or focus) the settings window: POST /api/ui/settings?tab=api.
-async fn ui_open_settings(RawQuery(raw): RawQuery) -> (StatusCode, Json<Value>) {
-    let params = parse_query_to_map(raw.as_deref());
-    let tab = params
-        .get("tab")
-        .cloned()
-        .unwrap_or_else(|| "api".to_string());
-    if let Some(app_handle) = crate::APP_HANDLE.get() {
-        if let Err(err) = crate::window::create_settings_window(app_handle, &tab) {
-            return json_error(&ApiError::internal(err.to_string()));
-        }
-        json_ok(json!({ "opened": true, "tab": tab }))
     } else {
         json_error(&ApiError::internal("app handle not available"))
     }
@@ -683,7 +659,7 @@ async fn status(
         })
         .collect();
     let mut body = json!({
-        "name": "ZapZap",
+        "name": "Zapdude",
         "version": env!("CARGO_PKG_VERSION"),
         "api_version": LOCAL_API_VERSION,
         "api": {

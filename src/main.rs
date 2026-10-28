@@ -1,18 +1,19 @@
-//! ZapZap (Rust) — WhatsApp Web desktop client with a local automation API.
+//! Zapdude (Rust) — WhatsApp Web desktop client with a local automation API.
 //!
 //! Shell architecture (like the original ZapZap):
 #![windows_subsystem = "windows"]
 //!   - ONE window ("main") hosts every webview:
-//!       * `rail`        — the narrow account rail (avatars, "+", settings)
-//!       * `welcome`     — onboarding shown when no account is active
+//!       * `rail`        — the narrow account rail (logo, avatars, "+")
+//!       * `welcome`     — technical backdrop (never a destination)
+//!       * `drawer`      — full-screen options panel (logo click, lazy)
 //!       * `account-<id>` — one WhatsApp Web webview per account, switched
 //!         in place like browser tabs, each with its own isolated profile.
-//!   - A separate "settings" window holds API config, AI agent info and About.
+//!         Created LAZILY on first open (startup stays instant no matter
+//!         how many accounts exist).
 //!   - A tray menu mirrors the rail for quick account switching.
 //!   - A loopback HTTP API lets people and AI agents control the app.
 
 mod api;
-mod app_commands;
 mod config;
 mod window;
 
@@ -93,42 +94,20 @@ fn main() {
             let app_handle = app.handle().clone();
             window::create_shell(&app_handle)?;
 
-            // 3. One parked WhatsApp Web webview per account so background
-            //    accounts keep their session, notifications and the API bridge.
-            for account in settings
-                .current_accounts()
-                .into_iter()
-                .filter(|account| account.enabled)
-            {
-                if let Err(err) = window::ensure_account_webview(&app_handle, &account) {
-                    eprintln!(
-                        "zapdude: could not create webview for '{}': {}",
-                        account.id, err
-                    );
-                }
-            }
-
-            // 4. Open the first account's WhatsApp Web right away (ZapZap
+            // 3. Open the first account's WhatsApp Web right away (ZapZap
             //    behavior: the app opens straight into the QR — no welcome
             //    interstitial). Creates the first account if none exists.
+            //    Other accounts are created LAZILY on their first open, so
+            //    startup and adding many accounts stay fast (they are "just
+            //    web pages", but each WhatsApp Web is heavy; loading N of
+            //    them at once made everything crawl).
             window::auto_open_first_account(&app_handle);
 
-            // 5. Tray icon with per-account entries.
+            // 4. Tray icon with per-account entries.
             window::initialize_tray(app);
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![
-            app_commands::get_accounts,
-            app_commands::add_account,
-            app_commands::open_account,
-            app_commands::hide_account,
-            app_commands::remove_account,
-            app_commands::open_settings,
-            app_commands::get_api_config,
-            app_commands::save_api_config,
-            app_commands::quit_app,
-        ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 // The shell hides to tray; auxiliary windows (settings) close.
@@ -139,5 +118,5 @@ fn main() {
             }
         })
         .run(tauri::generate_context!())
-        .expect("error while running ZapZap");
+        .expect("error while running Zapdude");
 }

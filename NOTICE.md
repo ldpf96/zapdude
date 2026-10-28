@@ -1,7 +1,7 @@
 # NOTICE
 
-ZapZap (Rust) — cliente de escritorio de WhatsApp Web con API local para
-automatización, escrito en Rust con Tauri 2 y WebView2.
+Zapdude — cliente de escritorio de WhatsApp Web multi-cuenta con API local
+para automatización, escrito en Rust con Tauri 2 y WebView2.
 
 ## Créditos
 
