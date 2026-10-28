@@ -23,13 +23,13 @@
       font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
       background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
       display: flex; flex-direction: column; align-items: center;
-      padding: 16px 0 14px;
+      padding: 16px 0 16px;
       overflow: hidden;
       border-right: 1px solid var(--stroke);
     }
     svg.icon { width: 100%; height: 100%; display: block; }
 
-    /* ---- Brand / logo (opens the active account) ---- */
+    /* ---- Brand / logo (opens the options drawer) ---- */
     .logo {
       width: 44px; height: 44px; border-radius: 14px;
       background: linear-gradient(140deg, #34e877 0%, #0f9e6c 100%);
@@ -43,11 +43,12 @@
     .logo:hover { transform: translateY(-1px) scale(1.04); box-shadow: 0 4px 18px rgba(46,224,111,0.5), inset 0 1px 0 rgba(255,255,255,0.35); }
     .logo:active { transform: scale(0.97); }
     .logo svg { width: 22px; height: 22px; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.25)); }
+    .logo.open { box-shadow: 0 0 0 2px rgba(46,224,111,0.55), 0 4px 18px rgba(46,224,111,0.5), inset 0 1px 0 rgba(255,255,255,0.35); }
 
     .rail-scroll {
       flex: 1; overflow-y: auto; width: 100%;
       display: flex; flex-direction: column; align-items: center; gap: 10px;
-      padding: 18px 0 6px; scrollbar-width: none;
+      padding: 18px 0 10px; scrollbar-width: none;
       mask-image: linear-gradient(180deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
       -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
     }
@@ -99,7 +100,7 @@
       box-shadow: 0 8px 24px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06);
       z-index: 20;
     }
-    .avatar:hover .tooltip, .icon-btn:hover .tooltip, .logo:hover .tooltip, .add-btn:hover .tooltip {
+    .avatar:hover .tooltip, .logo:hover .tooltip, .add-btn:hover .tooltip {
       opacity: 1; transform: translateY(-50%) translateX(0);
     }
     .avatar.armed .tooltip { background: rgba(60, 18, 16, 0.97); color: #ffb4ae; opacity: 1; transform: translateY(-50%) translateX(0); }
@@ -113,28 +114,12 @@
       cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       transition: background 0.14s ease, transform 0.14s ease, border-color 0.14s ease;
-      flex-shrink: 0; margin-top: 10px; position: relative;
+      flex-shrink: 0; position: relative;
     }
     .add-btn svg { width: 18px; height: 18px; }
     .add-btn:hover { background: var(--accent-soft); border-color: rgba(46,224,111,0.7); transform: translateY(-1px); }
     .add-btn:disabled { opacity: 0.45; cursor: wait; transform: none; }
 
-    /* ---- Footer ---- */
-    .footer {
-      display: flex; flex-direction: column; gap: 4px; align-items: center;
-      padding-top: 10px; flex-shrink: 0;
-      border-top: 1px solid var(--stroke);
-      width: 100%;
-    }
-    .icon-btn {
-      width: 40px; height: 36px; border-radius: 10px; border: none;
-      background: transparent; color: var(--muted); cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      transition: background 0.14s ease, color 0.14s ease; position: relative;
-    }
-    .icon-btn svg { width: 17px; height: 17px; }
-    .icon-btn:hover { background: var(--tile); color: var(--text); }
-    .version { font-size: 9.5px; color: rgba(107, 130, 121, 0.55); padding: 4px 0 0; letter-spacing: 0.3px; }
     .offline {
       position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
       background: rgba(80, 56, 18, 0.95); color: var(--warn); font-size: 10.5px; font-weight: 600;
@@ -153,47 +138,22 @@
       <symbol id="i-plus" viewBox="0 0 24 24">
         <path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" d="M12 5v14M5 12h14"/>
       </symbol>
-      <symbol id="i-gear" viewBox="0 0 24 24">
-        <g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="3.2"/>
-          <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.65 8.9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.08A1.7 1.7 0 0 0 10.12 3V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.08a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.11z"/>
-        </g>
-      </symbol>
-      <symbol id="i-info" viewBox="0 0 24 24">
-        <g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-          <circle cx="12" cy="12" r="9"/>
-          <line x1="12" y1="11" x2="12" y2="16.2"/>
-          <circle cx="12" cy="7.8" r="0.4" fill="currentColor" stroke-width="1.6"/>
-        </g>
-      </symbol>
     </defs>
   </svg>
 
   <div class="offline" id="offline">Reconectando…</div>
 
-  <div class="logo" id="logo" title="ZapDude">
+  <div class="logo" id="logo">
     <svg class="icon"><use href="#i-bolt"/></svg>
-    <span class="tooltip">Abrir cuenta activa</span>
+    <span class="tooltip">Opciones ZapDude</span>
   </div>
 
   <div class="rail-scroll" id="rail"></div>
 
-  <button class="add-btn" id="addBtn" title="Agregar cuenta">
+  <button class="add-btn" id="addBtn">
     <svg class="icon"><use href="#i-plus"/></svg>
     <span class="tooltip">Agregar cuenta</span>
   </button>
-
-  <div class="footer">
-    <button class="icon-btn" id="settingsBtn">
-      <svg class="icon"><use href="#i-gear"/></svg>
-      <span class="tooltip">Configuración API</span>
-    </button>
-    <button class="icon-btn" id="aboutBtn">
-      <svg class="icon"><use href="#i-info"/></svg>
-      <span class="tooltip">Acerca de ZapDude</span>
-    </button>
-    <div class="version" id="version">v1.0.0</div>
-  </div>
 
   <script>
     "use strict";
@@ -213,7 +173,7 @@
     }
 
     function disarm() {
-      if (armedId) { armedId = null; loadRail(); }
+      if (armedId) { armedId = null; renderRail(); }
     }
 
     // Self-heal: if the API goes away (port change / restart), show a badge
@@ -236,49 +196,62 @@
       try { data = await api("/api/accounts"); }
       catch (e) { return; } // healthWatch handles reconnection UI
       accounts = data.accounts || [];
-      const rail = document.getElementById("rail");
-      rail.innerHTML = "";
-      for (const a of accounts) {
-        if (a.active) activeId = a.id;
-        const el = document.createElement("div");
-        const isArmed = armedId === a.id;
-        el.className = "avatar" + (a.active ? " active" : "") + (isArmed ? " armed" : "");
-        const state = a.session_state === "logged_in" ? "logged" : a.session_state === "scan_qr" ? "qr" : "detecting";
-        const stateLabel = a.session_state === "logged_in" ? "conectada" : a.session_state === "scan_qr" ? "esperando QR" : "cargando";
-        el.innerHTML = `<svg class="icon"><use href="#i-bolt"/></svg>` +
-          `<span class="dot ${state}"></span>` +
-          `<span class="tooltip">${isArmed ? "Clic de nuevo para eliminar" : esc(a.label) + " · " + stateLabel}</span>`;
-        el.onclick = async () => {
-          if (armedId === a.id) {
-            try { await api("/api/accounts/" + encodeURIComponent(a.id), { method: "DELETE" }); } catch (e) { console.error(e); }
-            armedId = null;
-            return;
-          }
-          if (armedId) { disarm(); return; }
-          try { await api("/api/accounts/" + encodeURIComponent(a.id) + "/open", { method: "POST" }); } catch (e) { console.error(e); }
-        };
-        el.oncontextmenu = (ev) => {
-          ev.preventDefault();
-          if (armedId === a.id) { disarm(); return; }
-          armedId = a.id;
-          loadRail();
-        };
-        rail.appendChild(el);
-      }
+      renderRail();
     }
 
-    // Logo click: bring the active account to the front (create one if the
-    // registry is somehow empty).
-    document.getElementById("logo").onclick = async () => {
-      disarm();
-      try {
-        if (!accounts.length) { await api("/api/accounts", { method: "POST" }); }
-        else {
-          const target = activeId && accounts.some(a => a.id === activeId)
-            ? activeId : accounts[0].id;
-          await api("/api/accounts/" + encodeURIComponent(target) + "/open", { method: "POST" });
+    // Incremental DOM update (no innerHTML rebuild = no flicker on polls).
+    function renderRail() {
+      const rail = document.getElementById("rail");
+      const byId = new Map();
+      for (const a of accounts) {
+        if (a.active) activeId = a.id;
+        byId.set(a.id, a);
+      }
+      // Remove stale tiles.
+      for (const el of Array.from(rail.children)) {
+        if (!byId.has(el.dataset.id)) el.remove();
+      }
+      // Update/create tiles in order.
+      accounts.forEach((a, index) => {
+        let el = rail.children[index];
+        const isArmed = armedId === a.id;
+        const state = a.session_state === "logged_in" ? "logged" : a.session_state === "scan_qr" ? "qr" : "detecting";
+        const stateLabel = a.session_state === "logged_in" ? "conectada" : a.session_state === "scan_qr" ? "esperando QR" : "cargando";
+        if (!el || el.dataset.id !== a.id) {
+          el = document.createElement("div");
+          el.dataset.id = a.id;
+          el.innerHTML = `<svg class="icon"><use href="#i-bolt"/></svg>` +
+            `<span class="dot"></span>` +
+            `<span class="tooltip"></span>`;
+          el.onclick = async () => {
+            if (armedId === a.id) {
+              try { await api("/api/accounts/" + encodeURIComponent(a.id), { method: "DELETE" }); } catch (e) { console.error(e); }
+              armedId = null;
+              loadRail();
+              return;
+            }
+            if (armedId) { disarm(); return; }
+            try { await api("/api/accounts/" + encodeURIComponent(a.id) + "/open", { method: "POST" }); } catch (e) { console.error(e); }
+          };
+          el.oncontextmenu = (ev) => {
+            ev.preventDefault();
+            if (armedId === a.id) { disarm(); return; }
+            armedId = a.id;
+            renderRail();
+          };
+          rail.insertBefore(el, rail.children[index] || null);
         }
-      } catch (e) { console.error(e); }
+        el.className = "avatar" + (a.active ? " active" : "") + (isArmed ? " armed" : "");
+        el.querySelector(".dot").className = "dot " + state;
+        const tip = el.querySelector(".tooltip");
+        tip.textContent = isArmed ? "Clic de nuevo para eliminar" : `${a.label} · ${stateLabel}`;
+      });
+    }
+
+    // Logo click: toggle the options drawer (API / AI agent / About).
+    document.getElementById("logo").onclick = async (ev) => {
+      disarm();
+      try { await api("/api/ui/drawer", { method: "POST" }); } catch (e) { console.error(e); }
     };
 
     document.getElementById("addBtn").onclick = async (ev) => {
@@ -291,18 +264,10 @@
       } catch (e) { console.error(e); }
       btn.disabled = false;
     };
-    document.getElementById("settingsBtn").onclick = () =>
-      api("/api/ui/settings?tab=api", { method: "POST" }).catch(console.error);
-    document.getElementById("aboutBtn").onclick = () =>
-      api("/api/ui/settings?tab=about", { method: "POST" }).catch(console.error);
 
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") disarm(); });
 
     (async () => {
-      try {
-        const h = await api("/api/healthz");
-        document.getElementById("version").textContent = "v" + (h.version || "1.0.0");
-      } catch (_) {}
       await loadRail();
       setInterval(loadRail, 2500);
       healthWatch();

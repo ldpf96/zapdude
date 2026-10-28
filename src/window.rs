@@ -56,15 +56,22 @@ const HIDE_DOWNLOAD_BANNERS_SCRIPT: &str = include_str!("../scripts/hide_downloa
 /// Logical width of the left rail. The content area gets the rest.
 pub const RAIL_WIDTH: f64 = 76.0;
 
-/// Inactive content webviews park at 1x1 px inside the window. Keeping them
-/// tiny (instead of hidden) means switching accounts always changes the
-/// webview's REAL size, which forces WebView2 to re-compose — hidden
-/// webviews and same-size moves leave a gray/blank page behind.
-const PARKED_SIZE: f64 = 1.0;
+/// Width of the options drawer that slides over the content when the brand
+/// logo is clicked.
+pub const DRAWER_WIDTH: f64 = 380.0;
+
+/// X position where inactive content webviews park: FULL size, completely
+/// outside the visible client area. Parking by POSITION (never by size and
+/// never by hide()) keeps WhatsApp's layout warm — switching accounts is a
+/// position-only move, so there is no re-render and the switch is instant.
+const PARKED_X: f64 = -24000.0;
 
 /// Which content webview is currently in the content slot ("welcome" or an
 /// account id). Everything else is parked.
 static ACTIVE: Mutex<Option<String>> = Mutex::new(None);
+
+/// Whether the options drawer is over the content area.
+static DRAWER_OPEN: Mutex<bool> = Mutex::new(false);
 
 pub fn account_webview_label(account_id: &str) -> String {
     format!("account-{account_id}")
@@ -214,28 +221,43 @@ fn content_size(window: &Window<Wry>) -> tauri::Result<LogicalSize<f64>> {
 
 /// Keep every webview glued to its slot after a window resize. The active
 /// content webview sits right of the rail; every other content webview is
-/// parked outside the visible area (never hidden, so it keeps rendering).
+/// parked at FULL SIZE outside the visible area (position-only parking, so
+/// account switches never trigger a WhatsApp re-render).
 fn relayout(window: &Window<Wry>) {
     let Ok(content) = content_size(window) else {
         return;
     };
     let active = ACTIVE.lock().ok().and_then(|guard| guard.clone());
+    let drawer_open = DRAWER_OPEN.lock().map(|guard| *guard).unwrap_or(false);
     for webview in window.webviews() {
-        let is_rail = webview.label() == "rail";
-        let is_active = active.as_deref() == Some(webview.label());
-        let position = if is_rail {
-            LogicalPosition::new(0.0_f64, 0.0_f64)
-        } else if is_active {
-            LogicalPosition::new(RAIL_WIDTH, 0.0_f64)
+        let label = webview.label().to_string();
+        let (position, size) = if label == "rail" {
+            (
+                LogicalPosition::new(0.0_f64, 0.0_f64),
+                LogicalSize::new(RAIL_WIDTH, content.height),
+            )
+        } else if label == "drawer" {
+            if drawer_open {
+                (
+                    LogicalPosition::new(RAIL_WIDTH, 0.0_f64),
+                    LogicalSize::new(DRAWER_WIDTH, content.height),
+                )
+            } else {
+                (
+                    LogicalPosition::new(PARKED_X, 0.0_f64),
+                    LogicalSize::new(DRAWER_WIDTH, content.height),
+                )
+            }
+        } else if active.as_deref() == Some(label.as_str()) {
+            (
+                LogicalPosition::new(RAIL_WIDTH, 0.0_f64),
+                LogicalSize::new(content.width, content.height),
+            )
         } else {
-            LogicalPosition::new(RAIL_WIDTH, 0.0_f64)
-        };
-        let size = if is_rail {
-            LogicalSize::new(RAIL_WIDTH, content.height)
-        } else if is_active {
-            LogicalSize::new(content.width, content.height)
-        } else {
-            LogicalSize::new(PARKED_SIZE, PARKED_SIZE)
+            (
+                LogicalPosition::new(PARKED_X, 0.0_f64),
+                LogicalSize::new(content.width, content.height),
+            )
         };
         let _ = webview.set_position(position);
         let _ = webview.set_size(size);
@@ -383,12 +405,50 @@ pub fn ensure_account_webview(
 }
 
 /// Create (if needed) and show an account's WhatsApp Web webview.
+/// Closing the options drawer is part of opening an account: the QR/chat
+/// takes the whole content area.
 pub fn open_account_webview(
     app: &AppHandle,
     account: &crate::config::AccountConfig,
 ) -> tauri::Result<()> {
+    if let Ok(mut open) = DRAWER_OPEN.lock() {
+        *open = false;
+    }
     ensure_account_webview(app, account)?;
     show_content(app, &account_webview_label(&account.id))
+}
+
+/// Toggle the options drawer (brand-logo click): a panel over the content
+/// area with the API settings, AI-agent docs and About. Created lazily on
+/// first use so it stacks ABOVE the account webviews.
+pub fn toggle_drawer(app: &AppHandle) -> tauri::Result<()> {
+    let open_now = DRAWER_OPEN.lock().map(|guard| *guard).unwrap_or(false);
+    let open = !open_now;
+    eprintln!("zapdude: drawer toggle -> {} (was {})", open, open_now);
+    if let Ok(mut guard) = DRAWER_OPEN.lock() {
+        *guard = open;
+    }
+    if open && app.get_webview("drawer").is_none() {
+        let Some(window) = app.get_window("main") else {
+            return Ok(());
+        };
+        let content = content_size(&window)?;
+        let base = ui_base_url();
+        let url: url::Url = format!("{base}/drawer").parse().expect("drawer URL must parse");
+        let created = window.add_child(
+            WebviewBuilder::new("drawer", WebviewUrl::External(url)),
+            LogicalPosition::new(RAIL_WIDTH, 0.0_f64),
+            LogicalSize::new(DRAWER_WIDTH, content.height),
+        );
+        eprintln!("zapdude: drawer created lazily -> {}", created.is_ok());
+    }
+    if let Some(window) = app.get_window("main") {
+        relayout(&window);
+        let labels: Vec<String> = window.webviews().iter().map(|w| w.label().to_string()).collect();
+        eprintln!("zapdude: webviews after relayout: {:?}", labels);
+        let _ = window.set_focus();
+    }
+    Ok(())
 }
 
 /// Return to a sensible view after an account is hidden: the first account
@@ -424,15 +484,13 @@ pub fn reload_shell_ui(app: &AppHandle) {
         let target = match webview.label() {
             "rail" => format!("{base}/"),
             "welcome" => format!("{base}/welcome"),
+            "drawer" => format!("{base}/drawer"),
             other if other.starts_with("account-") => continue, // WhatsApp views keep their session
             _ => continue,
         };
         if let Ok(url) = target.parse::<url::Url>() {
             let _ = webview.navigate(url);
         }
-    }
-    if let Some(settings) = app.get_webview_window("settings") {
-        let _ = settings.navigate(format!("{base}/settings?tab=api").parse().unwrap());
     }
 }
 

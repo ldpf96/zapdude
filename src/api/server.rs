@@ -50,6 +50,7 @@ use crate::config::{self, AccountConfig, SettingsState};
 const RAIL_HTML: &str = include_str!("../../ui/rail.html");
 const WELCOME_HTML: &str = include_str!("../../ui/welcome.html");
 const SETTINGS_HTML: &str = include_str!("../../ui/settings.html");
+const DRAWER_HTML: &str = include_str!("../../ui/drawer.html");
 
 /// Holder guarded by a Mutex so the server can be stopped and restarted
 /// (port changes) without losing the slot.
@@ -260,7 +261,9 @@ fn router(state: ApiState) -> Router {
         .route("/", get(serve_rail))
         .route("/welcome", get(serve_welcome))
         .route("/settings", get(serve_settings))
+        .route("/drawer", get(serve_drawer))
         .route("/api/ui/quit", post(ui_quit))
+        .route("/api/ui/drawer", post(ui_toggle_drawer))
         .route("/api/ui/settings", post(ui_open_settings))
         // --- Management endpoints (no auth, used by the shell UI + local tools) ---
         .route("/api/healthz", get(healthz))
@@ -347,6 +350,22 @@ async fn serve_welcome() -> impl IntoResponse {
 
 async fn serve_settings() -> impl IntoResponse {
     axum::response::Html(SETTINGS_HTML)
+}
+
+async fn serve_drawer() -> impl IntoResponse {
+    axum::response::Html(DRAWER_HTML)
+}
+
+/// Toggle the options drawer (brand-logo click in the rail).
+async fn ui_toggle_drawer() -> (StatusCode, Json<Value>) {
+    if let Some(app_handle) = crate::APP_HANDLE.get() {
+        if let Err(err) = crate::window::toggle_drawer(app_handle) {
+            return json_error(&ApiError::internal(err.to_string()));
+        }
+        json_ok(json!({ "ok": true }))
+    } else {
+        json_error(&ApiError::internal("app handle not available"))
+    }
 }
 
 /// Session state derived from a page snapshot (three honest states).

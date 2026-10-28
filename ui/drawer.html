@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Opciones — ZapDude</title>
+  <style>
+    :root {
+      --panel: #0c1713;
+      --card: #101d18;
+      --stroke: rgba(255, 255, 255, 0.08);
+      --accent: #2ee06f;
+      --accent-soft: rgba(46, 224, 111, 0.14);
+      --text: #eef4f1;
+      --muted: #7d948a;
+      --danger: #ff5f56;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+      background: linear-gradient(180deg, #0d1f19 0%, #08130f 100%);
+      color: var(--text);
+      display: flex; flex-direction: column;
+      border-right: 1px solid var(--stroke);
+      box-shadow: 8px 0 40px rgba(0,0,0,0.45);
+      overflow: hidden;
+    }
+    header {
+      display: flex; align-items: center; gap: 12px;
+      padding: 18px 20px 14px; flex-shrink: 0;
+      border-bottom: 1px solid var(--stroke);
+    }
+    header .mark {
+      width: 34px; height: 34px; border-radius: 11px; flex-shrink: 0;
+      background: linear-gradient(140deg, #34e877 0%, #0f9e6c 100%);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 2px 10px rgba(46,224,111,0.35), inset 0 1px 0 rgba(255,255,255,0.35);
+    }
+    header .mark svg { width: 17px; height: 17px; }
+    header h1 { font-size: 15.5px; font-weight: 650; letter-spacing: 0.2px; }
+    header .sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+    header .close {
+      margin-left: auto; width: 30px; height: 30px; border-radius: 9px;
+      border: none; background: transparent; color: var(--muted);
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background 0.14s, color 0.14s;
+    }
+    header .close:hover { background: rgba(255,255,255,0.07); color: var(--text); }
+
+    main { flex: 1; overflow-y: auto; padding: 16px 18px 20px; }
+    main::-webkit-scrollbar { width: 8px; }
+    main::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.09); border-radius: 8px; }
+
+    .section { margin-bottom: 18px; }
+    .section > .title {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 11px; font-weight: 700; letter-spacing: 1.4px;
+      color: var(--muted); text-transform: uppercase;
+      margin: 4px 2px 8px;
+    }
+    .section > .title svg { width: 13px; height: 13px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--stroke);
+      border-radius: 14px;
+      padding: 16px;
+    }
+    .card h3 { font-size: 13.5px; font-weight: 650; margin-bottom: 4px; }
+    .card .desc { font-size: 12px; color: var(--muted); line-height: 1.55; margin-bottom: 12px; }
+    .row {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 9px 0; border-top: 1px solid var(--stroke);
+    }
+    .row:first-of-type { border-top: none; }
+    .row label { font-size: 12.5px; display: block; }
+    .row .hint { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    input[type="text"], input[type="number"] {
+      width: 200px; background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px; padding: 7px 10px; color: var(--text); font-size: 12.5px;
+      outline: none; font-family: inherit;
+    }
+    input:focus { border-color: var(--accent); }
+    .switch { position: relative; width: 38px; height: 21px; flex-shrink: 0; }
+    .switch input { display: none; }
+    .switch .track {
+      position: absolute; inset: 0; border-radius: 21px; background: rgba(255,255,255,0.12);
+      transition: background 0.15s; cursor: pointer; display: block;
+    }
+    .switch .track::after {
+      content: ''; position: absolute; top: 3px; left: 3px; width: 15px; height: 15px;
+      border-radius: 50%; background: #cfd8d4; transition: transform 0.15s, background 0.15s;
+    }
+    .switch input:checked + .track { background: var(--accent); }
+    .switch input:checked + .track::after { transform: translateX(17px); background: #06231a; }
+    .btn {
+      width: 100%; padding: 10px 22px; border-radius: 10px; border: none;
+      font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;
+      background: var(--accent); color: #06231a;
+      transition: filter 0.14s, transform 0.1s;
+    }
+    .btn:hover { filter: brightness(1.07); }
+    .btn:active { transform: scale(0.99); }
+    .mono { font-family: Consolas, monospace; font-size: 11px; color: var(--muted); word-break: break-all; }
+    .endpoint {
+      background: rgba(0,0,0,0.3); border: 1px solid var(--stroke); border-radius: 8px;
+      padding: 7px 10px; margin-bottom: 6px;
+      font-family: Consolas, monospace; font-size: 11px; color: #9fb3ac;
+    }
+    .endpoint b { color: var(--accent); font-weight: 600; }
+    a { color: var(--accent); text-decoration: none; }
+    code { background: rgba(0,0,0,0.3); padding: 1px 5px; border-radius: 5px; font-size: 11px; }
+    .ok-badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.3px; }
+    .ok-on { background: rgba(46,224,111,0.15); color: var(--accent); }
+    .ok-off { background: rgba(255,95,86,0.15); color: #ff8a80; }
+    .toast {
+      position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%) translateY(80px);
+      background: #1c2f28; color: var(--text); padding: 9px 18px; border-radius: 10px;
+      font-size: 12.5px; transition: transform 0.22s; z-index: 99;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-bolt" viewBox="0 0 24 24">
+        <path fill="currentColor" d="M13.2 2.2c.4-.5 1.2-.1 1.1.5l-1.1 6.6h5.1c.6 0 .9.7.5 1.1L10.8 21.8c-.4.5-1.2.1-1.1-.5l1.1-6.6H5.7c-.6 0-.9-.7-.5-1.1L13.2 2.2z"/>
+      </symbol>
+      <symbol id="i-close" viewBox="0 0 24 24">
+        <path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/>
+      </symbol>
+      <symbol id="i-api" viewBox="0 0 24 24">
+        <g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+          <path d="M7 8l-4 4 4 4M17 8l4 4-4 4M13.5 5l-3 14"/>
+        </g>
+      </symbol>
+      <symbol id="i-bot" viewBox="0 0 24 24">
+        <g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+          <rect x="4" y="8" width="16" height="11" rx="3"/>
+          <path d="M12 8V4.5M9 13h.01M15 13h.01"/>
+        </g>
+      </symbol>
+      <symbol id="i-heart" viewBox="0 0 24 24">
+        <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 20.3l-7.2-7.1a4.6 4.6 0 1 1 6.5-6.5l.7.7.7-.7a4.6 4.6 0 1 1 6.5 6.5z"/>
+      </symbol>
+    </defs>
+  </svg>
+
+  <header>
+    <div class="mark"><svg><use href="#i-bolt"/></svg></div>
+    <div>
+      <h1>ZapDude</h1>
+      <div class="sub">Opciones y credenciales</div>
+    </div>
+    <button class="close" id="closeBtn" title="Cerrar">
+      <svg style="width:15px;height:15px"><use href="#i-close"/></svg>
+    </button>
+  </header>
+
+  <main>
+    <!-- ==================== API ==================== -->
+    <div class="section">
+      <div class="title">
+        <svg><use href="#i-api"/></svg> Configuración API
+      </div>
+      <div class="card">
+        <p class="desc">Permite que personas o agentes de IA controlen tus cuentas de WhatsApp desde la propia máquina. Solo accesible desde tu equipo (127.0.0.1).</p>
+        <div class="row">
+          <div>
+            <label>Habilitar API</label>
+            <div class="hint">http://127.0.0.1:<span id="portEcho">29977</span>/api</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="enabled"><span class="track"></span></label>
+        </div>
+        <div class="row">
+          <div><label>Puerto</label></div>
+          <input type="number" id="port" min="1024" max="65535">
+        </div>
+        <div class="row">
+          <div><label>Clave de API</label><div class="hint">Encabezado <code>X-API-Key</code></div></div>
+          <input type="text" id="apiKey">
+        </div>
+        <div class="row">
+          <div><label>Webhook (URL)</label><div class="hint">Recibe los eventos en tu servidor</div></div>
+          <input type="text" id="webhookUrl" placeholder="https://…">
+        </div>
+        <div class="row">
+          <div><label>Secreto del webhook</label><div class="hint">Firma HMAC-SHA256</div></div>
+          <input type="text" id="webhookSecret">
+        </div>
+        <div class="row">
+          <div><label>Estado</label></div>
+          <span class="ok-badge ok-off" id="apiBadge">Desactivada</span>
+        </div>
+        <div style="padding-top: 12px;">
+          <button class="btn" id="saveBtn">Guardar configuración</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== AI AGENT ==================== -->
+    <div class="section">
+      <div class="title">
+        <svg><use href="#i-bot"/></svg> Agente de IA
+      </div>
+      <div class="card">
+        <p class="desc">El agente usa la API local para leer chats, abrir conversaciones y enviar mensajes por cualquiera de tus cuentas. Endpoints:</p>
+        <div class="endpoint"><b>GET</b> /api/status?account=&lt;id&gt;</div>
+        <div class="endpoint"><b>GET</b> /api/chats?limit=20&amp;account=&lt;id&gt;</div>
+        <div class="endpoint"><b>POST</b> /api/message — {"account","phone","message"}</div>
+        <div class="endpoint"><b>POST</b> /api/open-chat — {"account","phone","text?"}</div>
+        <p class="desc" style="margin:10px 0 0;">Todas las peticiones requieren <code>X-API-Key</code>. Los eventos llegan etiquetados con la cuenta que los originó.</p>
+      </div>
+    </div>
+
+    <!-- ==================== ABOUT ==================== -->
+    <div class="section">
+      <div class="title">
+        <svg><use href="#i-heart"/></svg> Acerca de
+      </div>
+      <div class="card">
+        <h3>ZapDude <span id="ver" style="color:var(--muted);font-weight:500;"></span></h3>
+        <p class="desc">Cliente de escritorio de WhatsApp Web multi-cuenta con una API local para automatización, escrito en Rust con Tauri 2 y WebView2.</p>
+        <p class="desc">Licencia <b>AGPL-3.0</b>. Proyecto independiente inspirado en
+          <a href="https://github.com/rafatosta/zapzap" target="_blank">ZapZap</a>
+          de <b>Rafael Tosta</b> — todo el mérito de la idea original es suyo.
+          No es un producto oficial de WhatsApp ni de Meta.</p>
+        <p class="mono">https://github.com/rafatosta/zapzap</p>
+      </div>
+    </div>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    "use strict";
+    const $ = (id) => document.getElementById(id);
+
+    async function api(path, options) {
+      const res = await fetch(path, options);
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return res.json();
+    }
+
+    function toast(msg) {
+      const t = $("toast");
+      t.textContent = msg;
+      t.classList.add("show");
+      setTimeout(() => t.classList.remove("show"), 2200);
+    }
+
+    function updateBadge(enabled) {
+      const b = $("apiBadge");
+      b.textContent = enabled ? "Activa" : "Desactivada";
+      b.className = "ok-badge " + (enabled ? "ok-on" : "ok-off");
+    }
+
+    async function load() {
+      try {
+        const cfg = await api("/api/config");
+        $("enabled").checked = cfg.enabled;
+        $("port").value = cfg.port;
+        $("apiKey").value = cfg.api_key;
+        $("webhookUrl").value = cfg.webhook_url;
+        $("webhookSecret").value = cfg.webhook_secret;
+        $("portEcho").textContent = cfg.port;
+        updateBadge(cfg.enabled);
+      } catch (e) {
+        toast("No se pudo leer la configuración");
+      }
+    }
+
+    $("closeBtn").onclick = () => api("/api/ui/drawer", { method: "POST" }).catch(console.error);
+
+    $("saveBtn").onclick = async () => {
+      try {
+        await api("/api/config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+          enabled: $("enabled").checked,
+          port: parseInt($("port").value) || 29977,
+          api_key: $("apiKey").value.trim(),
+          webhook_url: $("webhookUrl").value.trim(),
+          webhook_secret: $("webhookSecret").value.trim(),
+        })});
+        toast("Configuración guardada");
+        setTimeout(load, 1200);
+      } catch (e) { toast("Error: " + e.message); }
+    };
+
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("closeBtn").click(); });
+    load();
+  </script>
+</body>
+</html>
