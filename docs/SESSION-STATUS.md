@@ -154,6 +154,29 @@ solo si TODOS los hijos quedan display:none computado, contenedores de ≤4 hijo
 - `4602fd9` docs: session status handoff (architecture, fixes, pending diagnostics)
 - `a868fe9` fix(shell): server-first startup, parked 1x1 webviews, safe promo hider, single instance
 - `4ca7ad9` feat(ui): rename to ZapDude, premium rail with bolt avatars, delete-any-account flow
+- `883e062` feat(ui): logo opens in-window options drawer, position-only parking makes account switching instant
+
+## Round 3 (feedback: logo-menus, velocidad, parpadeo, footer)
+
+- **Drawer de opciones en la MISMA ventana** (ui/drawer.html, label `drawer`,
+  DRAWER_WIDTH=380): el logo ZapDude del rail lo abre/cierra
+  (POST /api/ui/drawer → window::toggle_drawer, creado LAZY la primera vez para
+  que quede ENCIMA de las cuentas). Secciones separadas: Configuración API
+  (form + badge Activa/Desactivada + guardar), Agente de IA (endpoints), Acerca de
+  (ZapDude + AGPL + crédito Rafael Tosta). Cierra con X o Esc.
+- **Rail sin footer**: solo logo → avatares → "+". Sin tuerquita, sin ⓘ, sin
+  versión, sin la línea divisoria pegada al "+".
+- **Switch INSTANTÁNEO**: las cuentas inactivas van parqueadas a TAMAÑO COMPLETO
+  en x=-24000 (PARKED_X) y el switch es SOLO movimiento de posición — WhatsApp no
+  re-renderiza (con 1×1 re-renderizaba completo = 2-3s). Medido: pintado completo
+  a 350ms. El viejo "gray al parkear offscreen" era el script de promos (ya
+  reescrito) — el parking offscreen funciona bien con los scripts arreglados.
+- **Rail sin parpadeo**: renderRail() hace diff incremental (por dataset.id,
+  insertBefore en orden) en vez de innerHTML="" por cada poll (2.5s) o add.
+- open_account_webview cierra el drawer (el QR/chat toma todo el área).
+- reload_shell_ui re-apunta también el drawer (`/drawer`).
+- Config de la ventana "settings" y su endpoint /api/ui/settings quedan en el
+  código pero la UI ya no los usa (todo vive en el drawer).
 
 ## Round 2 (feedback del usuario tras probar: renombrado + premium + delete)
 
