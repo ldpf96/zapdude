@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Configuración — ZapZap</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+      background: #0b141a; color: #e9edef;
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    header {
+      display: flex; align-items: center; gap: 12px;
+      padding: 16px 22px; border-bottom: 1px solid #1d2a33; flex-shrink: 0;
+    }
+    header .logo {
+      width: 30px; height: 30px; border-radius: 9px;
+      background: linear-gradient(135deg, #25d366, #128c7e);
+      display: flex; align-items: center; justify-content: center; font-size: 15px;
+    }
+    header h2 { font-size: 16px; font-weight: 600; }
+    .tabs { display: flex; gap: 6px; padding: 14px 22px 0; flex-shrink: 0; }
+    .tab {
+      padding: 9px 16px; border-radius: 9px 9px 0 0; border: none;
+      background: transparent; color: #8696a0; font-size: 13px; font-weight: 600;
+      cursor: pointer; font-family: inherit;
+    }
+    .tab.active { background: #1d2a33; color: #25d366; }
+    main { flex: 1; overflow-y: auto; padding: 22px; }
+    .panel { display: none; }
+    .panel.active { display: block; }
+    .card {
+      background: #111b21; border: 1px solid #1d2a33; border-radius: 14px;
+      padding: 20px; margin-bottom: 16px;
+    }
+    .card h3 { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+    .card p { font-size: 12.5px; color: #8696a0; line-height: 1.55; margin-bottom: 14px; }
+    .row {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 10px 0; border-top: 1px solid #1d2a33;
+    }
+    .row label { font-size: 13px; color: #e9edef; display: block; }
+    .row .sub { font-size: 11.5px; color: #8696a0; margin-top: 2px; }
+    input[type="text"], input[type="number"] {
+      width: 240px; background: #0b141a; border: 1px solid #2a3942; border-radius: 8px;
+      padding: 8px 10px; color: #e9edef; font-size: 13px; outline: none; font-family: inherit;
+    }
+    input:focus { border-color: #25d366; }
+    .switch { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+    .switch input { display: none; }
+    .switch .track {
+      position: absolute; inset: 0; border-radius: 22px; background: #2a3942;
+      transition: background 0.15s; cursor: pointer; display: block;
+    }
+    .switch .track::after {
+      content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px;
+      border-radius: 50%; background: #8696a0; transition: transform 0.15s, background 0.15s;
+    }
+    .switch input:checked + .track { background: #25d366; }
+    .switch input:checked + .track::after { transform: translateX(18px); background: #04231b; }
+    .btn {
+      padding: 10px 22px; border-radius: 9px; border: none; font-size: 13px;
+      font-weight: 700; cursor: pointer; font-family: inherit;
+    }
+    .btn-primary { background: #25d366; color: #04231b; }
+    .btn-primary:hover { background: #1fbe5c; }
+    .mono { font-family: Consolas, monospace; font-size: 12px; color: #8696a0; word-break: break-all; }
+    .toast {
+      position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%) translateY(90px);
+      background: #233138; color: #e9edef; padding: 10px 20px; border-radius: 10px;
+      font-size: 13px; transition: transform 0.25s; z-index: 99;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+    code { background: #0b141a; padding: 2px 6px; border-radius: 5px; font-size: 11.5px; }
+    a { color: #25d366; text-decoration: none; }
+    .endpoint { background: #0b141a; border: 1px solid #1d2a33; border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; font-family: Consolas, monospace; font-size: 11.5px; color: #9fb3ac; }
+    .endpoint b { color: #25d366; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">⚡</div>
+    <h2>Configuración</h2>
+  </header>
+  <div class="tabs">
+    <button class="tab active" data-tab="api">Configuración API</button>
+    <button class="tab" data-tab="agent">Agente de IA</button>
+    <button class="tab" data-tab="about">Acerca de</button>
+  </div>
+  <main>
+    <!-- API -->
+    <section class="panel active" id="panel-api">
+      <div class="card">
+        <h3>API local para automatización</h3>
+        <p>Permite que personas o agentes de IA controlen tus cuentas de WhatsApp desde la propia máquina. La API solo es accesible desde tu equipo (127.0.0.1).</p>
+        <div class="row">
+          <div>
+            <label>Habilitar API</label>
+            <div class="sub">http://127.0.0.1:<span id="portEcho">29977</span>/api</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="enabled"><span class="track"></span></label>
+        </div>
+        <div class="row">
+          <div><label>Puerto</label></div>
+          <input type="number" id="port" min="1024" max="65535">
+        </div>
+        <div class="row">
+          <div><label>Clave de API</label><div class="sub">Se envía en el encabezado <code>X-API-Key</code></div></div>
+          <input type="text" id="apiKey">
+        </div>
+        <div class="row">
+          <div><label>Webhook (URL)</label><div class="sub">Recibe los eventos en tu servidor</div></div>
+          <input type="text" id="webhookUrl" placeholder="https://…">
+        </div>
+        <div class="row">
+          <div><label>Secreto del webhook</label><div class="sub">Firma HMAC-SHA256</div></div>
+          <input type="text" id="webhookSecret">
+        </div>
+      </div>
+      <button class="btn btn-primary" id="saveBtn">Guardar configuración</button>
+    </section>
+
+    <!-- Agente de IA -->
+    <section class="panel" id="panel-agent">
+      <div class="card">
+        <h3>Conectar un agente de IA</h3>
+        <p>El agente usa la API local para leer chats, abrir conversaciones y enviar mensajes por cualquiera de tus cuentas. Endpoints disponibles:</p>
+        <div class="endpoint"><b>GET</b> /api/status?account=&lt;id&gt; — estado de la sesión</div>
+        <div class="endpoint"><b>GET</b> /api/chats?limit=20&amp;account=&lt;id&gt; — lista de chats</div>
+        <div class="endpoint"><b>POST</b> /api/message — {"account","phone","message"}</div>
+        <div class="endpoint"><b>POST</b> /api/open-chat — {"account","phone","text?"}</div>
+        <div class="endpoint"><b>GET</b> /api/events/stream — eventos en vivo (SSE)</div>
+        <div class="endpoint"><b>GET|POST</b> /api/webhook — receptor de eventos</div>
+        <p>Todas las peticiones requieren el encabezado <code>X-API-Key</code>. Los eventos llegan etiquetados con la cuenta que los originó.</p>
+      </div>
+      <div class="card">
+        <h3>Estado</h3>
+        <p class="mono" id="baseInfo">http://127.0.0.1:29977/api</p>
+        <p id="agentStatus">…</p>
+      </div>
+    </section>
+
+    <!-- Acerca de -->
+    <section class="panel" id="panel-about">
+      <div class="card">
+        <h3>ZapZap (Rust) <span id="ver"></span></h3>
+        <p>Cliente de escritorio de WhatsApp Web multi-cuenta con una API local para automatización, escrito en Rust con Tauri 2 y WebView2.</p>
+        <p>Licencia <b>AGPL-3.0</b>. Proyecto independiente inspirado en
+          <a href="https://github.com/rafatosta/zapzap" target="_blank">ZapZap</a>
+          de <b>Rafael Tosta</b> — todo el mérito de la idea original es suyo.
+          No es un producto oficial de WhatsApp ni de Meta.</p>
+        <p class="mono">https://github.com/rafatosta/zapzap</p>
+      </div>
+    </section>
+  </main>
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const invoke = window.__TAURI.core.invoke;
+    const $ = (id) => document.getElementById(id);
+
+    function setTab(name) {
+      document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === name));
+      document.querySelectorAll(".panel").forEach(p => p.classList.toggle("active", p.id === "panel-" + name));
+    }
+    document.querySelectorAll(".tab").forEach(t => t.onclick = () => setTab(t.dataset.tab));
+    // Tab requested by the host when opening this window.
+    window.__zapSetTab = setTab;
+    (function poll() {
+      if (window.__zapTab) { setTab(window.__zapTab); window.__zapTab = null; return; }
+      setTimeout(poll, 120);
+    })();
+
+    function toast(msg) {
+      const t = $("toast");
+      t.textContent = msg; t.classList.add("show");
+      setTimeout(() => t.classList.remove("show"), 2200);
+    }
+
+    function base() { return "http://127.0.0.1:" + $("port").value + "/api"; }
+    function updateBase() {
+      $("baseInfo").textContent = base();
+      $("portEcho").textContent = $("port").value;
+    }
+    $("port").oninput = updateBase;
+
+    async function load() {
+      try {
+        const cfg = await invoke("get_api_config");
+        $("enabled").checked = cfg.enabled;
+        $("port").value = cfg.port;
+        $("apiKey").value = cfg.api_key;
+        $("webhookUrl").value = cfg.webhook_url;
+        $("webhookSecret").value = cfg.webhook_secret;
+        $("ver").textContent = "v" + cfg.version;
+        updateBase();
+        $("agentStatus").textContent = cfg.enabled
+          ? "API activa — usa la clave de la pestaña “Configuración API”."
+          : "La API está deshabilitada. Actívala en “Configuración API”.";
+      } catch (e) { console.error(e); }
+    }
+
+    $("saveBtn").onclick = async () => {
+      try {
+        await invoke("save_api_config", { config: {
+          enabled: $("enabled").checked,
+          port: parseInt($("port").value) || 29977,
+          api_key: $("apiKey").value.trim(),
+          webhook_url: $("webhookUrl").value.trim(),
+          webhook_secret: $("webhookSecret").value.trim(),
+        }});
+        toast("Configuración guardada");
+        load();
+      } catch (e) { toast("Error: " + e); }
+    };
+    load();
+  </script>
+</body>
+</html>

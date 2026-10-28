@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>ZapZap</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+    html, body { height: 100%; }
+    body {
+      font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+      background: linear-gradient(180deg, #0e211c 0%, #081511 100%);
+      display: flex; flex-direction: column; align-items: center;
+      padding: 14px 0 12px;
+      overflow: hidden;
+      border-right: 1px solid rgba(255,255,255,0.06);
+    }
+    .logo {
+      width: 42px; height: 42px; border-radius: 13px;
+      background: linear-gradient(135deg, #25d366, #128c7e);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 21px; margin-bottom: 20px; flex-shrink: 0;
+      box-shadow: 0 4px 16px rgba(37, 211, 102, 0.35);
+    }
+    .rail-scroll {
+      flex: 1; overflow-y: auto; width: 100%;
+      display: flex; flex-direction: column; align-items: center; gap: 10px;
+      padding: 2px 0; scrollbar-width: none;
+    }
+    .rail-scroll::-webkit-scrollbar { display: none; }
+    .avatar {
+      width: 46px; height: 46px; border-radius: 50%;
+      background: #182b26; color: #e9edef;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 17px; font-weight: 600; cursor: pointer;
+      position: relative; border: 2px solid transparent;
+      transition: transform 0.12s ease, border-color 0.12s, background 0.12s;
+      flex-shrink: 0;
+    }
+    .avatar:hover { background: #1f3831; transform: scale(1.07); }
+    .avatar.active { border-color: #25d366; background: #143329; box-shadow: 0 0 12px rgba(37,211,102,0.35); }
+    .avatar .dot {
+      position: absolute; right: -1px; bottom: -1px;
+      width: 13px; height: 13px; border-radius: 50%;
+      border: 2px solid #0b1a16; background: #6a7f78;
+    }
+    .dot.logged { background: #25d366; }
+    .dot.qr { background: #f0b232; }
+    .dot.detecting { background: #6a7f78; }
+    .tooltip {
+      position: absolute; left: 58px; top: 50%; transform: translateY(-50%);
+      background: #1f2c33; color: #e9edef; font-size: 12px; font-weight: 500;
+      padding: 6px 10px; border-radius: 8px; white-space: nowrap;
+      opacity: 0; pointer-events: none; transition: opacity 0.12s;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.45); z-index: 20;
+    }
+    .avatar:hover .tooltip, .icon-btn:hover .tooltip, .add-btn:hover .tooltip { opacity: 1; }
+    .add-btn {
+      width: 46px; height: 46px; border-radius: 50%;
+      background: rgba(37, 211, 102, 0.10);
+      border: 2px dashed rgba(37, 211, 102, 0.55);
+      color: #25d366; font-size: 24px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.12s, transform 0.12s;
+      flex-shrink: 0; margin-top: 4px; position: relative;
+    }
+    .add-btn:hover { background: rgba(37, 211, 102, 0.22); transform: scale(1.07); }
+    .footer {
+      display: flex; flex-direction: column; gap: 6px; align-items: center;
+      padding-top: 12px; flex-shrink: 0;
+    }
+    .icon-btn {
+      width: 38px; height: 38px; border-radius: 11px; border: none;
+      background: transparent; color: #7d938b; font-size: 17px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.12s, color 0.12s; position: relative;
+    }
+    .icon-btn:hover { background: #182b26; color: #e9edef; }
+    .version { font-size: 9px; color: #3d534b; margin-top: 4px; }
+    .confirm-box {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+      display: none; align-items: center; justify-content: center; z-index: 50;
+    }
+    .confirm-box.show { display: flex; }
+    .confirm {
+      background: #16241f; border-radius: 16px; padding: 22px; width: 240px;
+      color: #e9edef; text-align: center; font-size: 13px; line-height: 1.5;
+      box-shadow: 0 16px 50px rgba(0,0,0,0.6);
+    }
+    .confirm .row { display: flex; gap: 8px; margin-top: 18px; justify-content: center; }
+    .confirm button { padding: 8px 16px; border-radius: 9px; border: none; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+    .c-cancel { background: #24332d; color: #e9edef; }
+    .c-del { background: #ef5350; color: #fff; }
+  </style>
+</head>
+<body>
+  <div class="logo">⚡</div>
+  <div class="rail-scroll" id="rail"></div>
+  <button class="add-btn" id="addBtn" title="Agregar cuenta">+</button>
+  <div class="footer">
+    <button class="icon-btn" id="settingsBtn" title="Configuración API">
+      ⚙<span class="tooltip">Configuración API</span>
+    </button>
+    <button class="icon-btn" id="aboutBtn" title="Acerca de">
+      ⓘ<span class="tooltip">Acerca de ZapZap</span>
+    </button>
+    <div class="version" id="version">v1.0.0</div>
+  </div>
+  <div class="confirm-box" id="confirmBox">
+    <div class="confirm">
+      <div id="confirmText">¿Eliminar esta cuenta y su sesión de WhatsApp?</div>
+      <div class="row">
+        <button class="c-cancel" onclick="closeConfirm()">Cancelar</button>
+        <button class="c-del" id="confirmDel">Eliminar</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const Tauri = window.__TAURI;
+    const invoke = Tauri.core.invoke;
+    let pendingRemove = null;
+
+    function esc(s) {
+      return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    }
+
+    async function loadRail() {
+      let accounts = [];
+      try { accounts = await invoke("get_accounts"); } catch (e) { console.error(e); return; }
+      const rail = document.getElementById("rail");
+      rail.innerHTML = "";
+      for (const a of accounts) {
+        const el = document.createElement("div");
+        el.className = "avatar" + (a.active ? " active" : "");
+        el.title = a.label;
+        const dot = a.session_state === "logged_in" ? "logged" : a.session_state === "scan_qr" ? "qr" : "detecting";
+        el.innerHTML = esc((a.label || "?").charAt(0).toUpperCase()) +
+          `<span class="dot ${dot}"></span>` +
+          `<span class="tooltip">${esc(a.label)} · ${a.session_state === "logged_in" ? "conectado" : a.session_state === "scan_qr" ? "espera QR" : "cargando"}</span>`;
+        el.onclick = () => invoke("open_account", { id: a.id }).catch(console.error);
+        el.oncontextmenu = (ev) => { ev.preventDefault(); openConfirm(a.id, a.label); };
+        rail.appendChild(el);
+      }
+    }
+
+    function openConfirm(id, label) {
+      pendingRemove = id;
+      document.getElementById("confirmText").textContent =
+        `¿Eliminar "${label}" y su sesión de WhatsApp?`;
+      document.getElementById("confirmBox").classList.add("show");
+    }
+    function closeConfirm() {
+      pendingRemove = null;
+      document.getElementById("confirmBox").classList.remove("show");
+    }
+    document.getElementById("confirmDel").onclick = async () => {
+      if (pendingRemove) {
+        try { await invoke("remove_account", { id: pendingRemove }); } catch (e) { console.error(e); }
+      }
+      closeConfirm();
+      loadRail();
+    };
+
+    document.getElementById("addBtn").onclick = async () => {
+      try { await invoke("add_account"); loadRail(); } catch (e) { console.error(e); }
+    };
+    document.getElementById("settingsBtn").onclick = () => invoke("open_settings", { tab: "api" }).catch(console.error);
+    document.getElementById("aboutBtn").onclick = () => invoke("open_settings", { tab: "about" }).catch(console.error);
+
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeConfirm(); });
+
+    (async () => {
+      try {
+        const cfg = await invoke("get_api_config");
+        document.getElementById("version").textContent = "v" + cfg.version;
+      } catch (_) {}
+      await loadRail();
+      setInterval(loadRail, 4000);
+    })();
+  </script>
+</body>
+</html>

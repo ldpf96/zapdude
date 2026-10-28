@@ -1,30 +1,29 @@
 //! Loopback HTTP server for the automation API (axum).
 //!
-//! Endpoints mirror the original fork design (account-aware):
+//! Endpoints (account-aware):
 //!   GET  /api/healthz                - availability probe (no key required)
-//!   GET  /api/config                 - read API config (no key, localhost only)
-//!   POST  /api/config                - save API config (no key, localhost only)
-//!   GET  /api/accounts               - configured accounts
-//!   POST /api/accounts               - add an account
-//!   DELETE /api/accounts/:id         - remove an account
-//!   POST /api/accounts/:id/open      - open an account's WhatsApp Web window
-//!   POST /api/accounts/:id/hide      - hide an account's WhatsApp Web window
-//!   GET  /api/status?account=<id>    - app + page + accounts snapshot
-//!   POST /api/open-chat              - {"account?":"work","phone":"55...","text?":"Hi"}
-//!   POST /api/message                - {"account?":"work","phone":"55...","message":"Hi"}
-//!   GET  /api/chats?limit=20&account= - best-effort visible chat list
+//!   GET  /api/config                 - read API config (localhost only)
+//!   POST /api/config                 - save API config (localhost only)
+//!   GET  /api/accounts               - configured accounts (localhost only)
+//!   POST /api/accounts               - add an account (localhost only)
+//!   DELETE /api/accounts/{id}        - remove an account (localhost only)
+//!   POST /api/accounts/{id}/open     - show an account in the shell
+//!   POST /api/accounts/{id}/hide     - hide an account webview
+//!   GET  /api/status?account=<id>    - app + page snapshot (requires key)
+//!   POST /api/open-chat              - {"account?":"work","phone":"55..."}
+//!   POST /api/message                - {"account?":"work","phone","message"}
+//!   GET  /api/chats?limit=20         - best-effort visible chat list
 //!   GET  /api/events?since=<id>      - polled history (all accounts)
 //!   GET  /api/events/stream          - SSE push (all accounts)
 //!   GET|POST /api/webhook            - set an HTTPS receiver for events
 //!
-//! Authentication: `X-API-Key: <key>` or `Authorization: Bearer <key>`.
+//! The server always binds the loopback interface so the desktop UI and
+//! local tooling can reach it. Automation endpoints additionally require
+//! `X-API-Key` (or `Authorization: Bearer`) AND `enabled: true` in config.
 //! Rate limit: 60 requests / rolling 60 s. Body cap: 1 MB.
-//!
-//! Management endpoints (/config, /accounts) are always available on
-//! localhost so the built-in UI can manage accounts and settings even when
-//! the automation API is disabled.
 
-use std::sync::{Arc, OnceLock};
+use std::net::SocketAddr;
+use std::sync::{Arc, Mutex, OnceLock};
 
 use axum::extract::{DefaultBodyLimit, Path, RawQuery, State};
 use axum::http::{HeaderMap, StatusCode};
@@ -44,12 +43,28 @@ use super::protocol::{
     error_payload, extract_api_key, ApiError, LOCAL_API_VERSION, MAX_BODY_BYTES,
 };
 use crate::config::{self, AccountConfig, SettingsState};
-use crate::window::{account_window_label, create_account_with_bridge};
-use tauri::Manager;
 
-static SERVER: OnceLock<ServerHolder> = OnceLock::new();
+/// Holder guarded by a Mutex so the server can be stopped and restarted
+/// (port changes) without losing the slot.
+static SERVER: OnceLock<Mutex<Option<ServerHolder>>> = OnceLock::new();
 static RATE: OnceLock<super::protocol::RateLimiter> = OnceLock::new();
 static BUS: OnceLock<Arc<ApiEventBus>> = OnceLock::new();
+
+struct ServerHolder {
+    shutdown: Arc<std::sync::atomic::AtomicBool>,
+}
+
+fn server_slot() -> &'static Mutex<Option<ServerHolder>> {
+    SERVER.get_or_init(|| Mutex::new(None))
+}
+
+fn server_running() -> bool {
+    server_slot()
+        .lock()
+        .ok()
+        .and_then(|guard| guard.as_ref().map(|holder| !holder.shutdown.load(std::sync::atomic::Ordering::Relaxed)))
+        .unwrap_or(false)
+}
 
 pub fn bus() -> Arc<ApiEventBus> {
     BUS.get_or_init(ApiEventBus::new).clone()
@@ -57,10 +72,6 @@ pub fn bus() -> Arc<ApiEventBus> {
 
 pub fn rate_limiter() -> &'static super::protocol::RateLimiter {
     RATE.get_or_init(super::protocol::RateLimiter::new)
-}
-
-struct ServerHolder {
-    shutdown: Arc<std::sync::atomic::AtomicBool>,
 }
 
 #[derive(Clone)]
@@ -73,12 +84,19 @@ fn settings() -> Option<SettingsState> {
     crate::SHARED.get().map(|shared| shared.settings.clone())
 }
 
-/// Idempotent: start the loopback server on localhost so the built-in UI
-/// can always manage accounts and settings, even when the automation API
-/// is disabled by configuration.
+/// Start the loopback server (idempotent). Always binds 127.0.0.1 so only
+/// local processes reach the API unless `expose_network` is enabled.
 pub fn start_loopback_server() {
-    if SERVER.get().is_some() {
-        return; // already running
+    {
+        let guard = match server_slot().lock() {
+            Ok(guard) => guard,
+            Err(_) => return,
+        };
+        if let Some(holder) = guard.as_ref() {
+            if !holder.shutdown.load(std::sync::atomic::Ordering::Relaxed) {
+                return; // already running
+            }
+        }
     }
     let Some(state_settings) = settings() else {
         return;
@@ -89,13 +107,12 @@ pub fn start_loopback_server() {
     if !app_settings.webhook_url.is_empty() {
         bus().set_webhook(&app_settings.webhook_url, &app_settings.webhook_secret);
     }
-
     let state = ApiState {
         settings: state_settings,
         bus: bus(),
     };
-    // Always bind to localhost for the built-in UI.
-    let bind_addr = format!("127.0.0.1:{}", app_settings.port);
+    let host = if app_settings.expose_network { "0.0.0.0" } else { "127.0.0.1" };
+    let bind_addr = format!("{host}:{}", app_settings.port);
 
     let shutdown = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let shutdown_handle = shutdown.clone();
@@ -118,7 +135,12 @@ pub fn start_loopback_server() {
             let serve = async {
                 match tokio::net::TcpListener::bind(&bind_addr).await {
                     Ok(listener) => {
-                        if let Err(err) = axum::serve(listener, app).await {
+                        if let Err(err) = axum::serve(
+                            listener,
+                            app.into_make_service_with_connect_info::<SocketAddr>(),
+                        )
+                        .await
+                        {
                             eprintln!("zapdude: API server stopped: {}", err);
                         }
                     }
@@ -138,29 +160,33 @@ pub fn start_loopback_server() {
                     }
                 }
             };
-            let exit = runtime.block_on(async {
+            let _exit = runtime.block_on(async {
                 tokio::select! {
                     _ = serve => 0u8,
                     _ = watcher => 1u8,
                 }
             });
-            let _ = exit;
             runtime.shutdown_timeout(std::time::Duration::from_secs(2));
         });
-    if let Ok(_handle) = thread {
+    if thread.is_ok() {
         eprintln!(
-            "zapdude: API server on http://127.0.0.1:{} [v{}]",
-            app_settings.port, LOCAL_API_VERSION
+            "zapdude: API server on http://{}:{} [v{}]",
+            host, app_settings.port, LOCAL_API_VERSION
         );
-        let _ = SERVER.set(ServerHolder { shutdown });
+        if let Ok(mut guard) = server_slot().lock() {
+            *guard = Some(ServerHolder { shutdown });
+        }
     }
 }
 
+/// Stop the server (automation endpoints unreachable; restartable).
 pub fn shutdown_loopback_server() {
-    if let Some(holder) = SERVER.get() {
-        holder
-            .shutdown
-            .store(true, std::sync::atomic::Ordering::Relaxed);
+    if let Ok(mut guard) = server_slot().lock() {
+        if let Some(holder) = guard.take() {
+            holder
+                .shutdown
+                .store(true, std::sync::atomic::Ordering::Relaxed);
+        }
     }
 }
 
@@ -170,9 +196,7 @@ fn resolve_account_id(
     state: &ApiState,
     requested: Option<&str>,
 ) -> Result<String, ApiError> {
-    let target = requested
-        .map(str::trim)
-        .filter(|raw| !raw.is_empty());
+    let target = requested.map(str::trim).filter(|raw| !raw.is_empty());
     match target {
         Some(id) => {
             if state.settings.account(id).is_some() {
@@ -189,27 +213,27 @@ fn resolve_account_id(
     }
 }
 
+/// Automation endpoints stay closed while the API is disabled in config.
+fn require_api_enabled(state: &ApiState) -> Result<(), ApiError> {
+    if state.settings.current().enabled {
+        Ok(())
+    } else {
+        Err(ApiError::unavailable(
+            "API is disabled — enable it in ZapZap settings",
+        ))
+    }
+}
+
 fn router(state: ApiState) -> Router {
-    // Flat paths under /api: axum 0.8 removed nesting at "/" (the previous
-    // internal `.nest("/")` panicked at runtime: "merge instead").
     Router::new()
-        // --- Management endpoints (no auth, localhost only) ---
+        // --- Management endpoints (no auth, used by the shell UI + local tools) ---
         .route("/api/healthz", get(healthz))
         .route("/api/config", get(get_config).post(post_config))
         .route("/api/accounts", get(list_accounts).post(add_account_http))
-        .route(
-            "/api/accounts/{id}",
-            delete(remove_account_http),
-        )
-        .route(
-            "/api/accounts/{id}/open",
-            post(open_account_http),
-        )
-        .route(
-            "/api/accounts/{id}/hide",
-            post(hide_account_http),
-        )
-        // --- Automation endpoints (require X-API-Key) ---
+        .route("/api/accounts/{id}", delete(remove_account_http))
+        .route("/api/accounts/{id}/open", post(open_account_http))
+        .route("/api/accounts/{id}/hide", post(hide_account_http))
+        // --- Automation endpoints (require X-API-Key + enabled) ---
         .route("/api/status", get(status))
         .route("/api/message", post(message))
         .route("/api/open-chat", post(open_chat))
@@ -274,27 +298,23 @@ fn parse_query_to_map(raw: Option<&str>) -> std::collections::HashMap<String, St
 }
 
 // -------------------------------------------------------------------------
-// Management handlers (no auth)
+// Management handlers (no auth; reachability gated by bind address)
 // -------------------------------------------------------------------------
 
 async fn healthz() -> impl IntoResponse {
-    let running = SERVER.get().is_some();
     json_ok(json!({
         "service": "zapdude-api",
         "api_version": LOCAL_API_VERSION,
-        "server_running": running,
+        "server_running": server_running(),
         "version": env!("CARGO_PKG_VERSION"),
     }))
 }
 
 async fn get_config() -> (StatusCode, Json<Value>) {
-    let settings = match settings() {
-        Some(s) => s,
-        None => {
-            return json_error(&ApiError::internal("app state not initialized"));
-        }
+    let Some(state_settings) = settings() else {
+        return json_error(&ApiError::internal("app state not initialized"));
     };
-    let api = settings.current();
+    let api = state_settings.current();
     json_ok(json!({
         "enabled": api.enabled,
         "port": api.port,
@@ -329,11 +349,9 @@ async fn post_config(
     if let Err(err) = state.settings.update_api(api.clone()) {
         return json_error(&ApiError::internal(err));
     }
-    // Siempre shutdown primero para que cambios de puerto surtan efecto inmediato.
+    // Restart so port/key changes take effect immediately.
     shutdown_loopback_server();
-    if api.enabled {
-        start_loopback_server();
-    }
+    start_loopback_server();
     json_ok(json!({
         "enabled": api.enabled,
         "port": api.port,
@@ -344,13 +362,10 @@ async fn post_config(
 }
 
 async fn list_accounts() -> (StatusCode, Json<Value>) {
-    let settings = match settings() {
-        Some(s) => s,
-        None => {
-            return json_error(&ApiError::internal("app state not initialized"));
-        }
+    let Some(state_settings) = settings() else {
+        return json_error(&ApiError::internal("app state not initialized"));
     };
-    let account_entries: Vec<Value> = settings
+    let account_entries: Vec<Value> = state_settings
         .current_accounts()
         .iter()
         .map(|account| {
@@ -365,62 +380,47 @@ async fn list_accounts() -> (StatusCode, Json<Value>) {
     json_ok(json!({ "accounts": account_entries }))
 }
 
-#[derive(Deserialize)]
-struct AddAccountBody {
-    id: String,
-    label: String,
-}
-
-async fn add_account_http(
-    State(state): State<ApiState>,
-    Json(body): Json<AddAccountBody>,
-) -> (StatusCode, Json<Value>) {
-    let id = body.id.trim().to_string();
-    let label = body.label.trim().to_string();
-    if id.is_empty() {
-        return json_error(&ApiError::bad_request("account id is required"));
+/// Create an account the ZapZap way: no body required, ids are generated
+/// (`account-N` / `Cuenta N`). The webview is created hidden; use
+/// `/open` to switch to it and scan the QR.
+async fn add_account_http(State(state): State<ApiState>) -> (StatusCode, Json<Value>) {
+    let mut accounts = state.settings.current_accounts();
+    let mut n = accounts.len() + 1;
+    let mut id = format!("account-{n}");
+    while accounts.iter().any(|a| a.id == id) {
+        n += 1;
+        id = format!("account-{n}");
     }
-    let current_accounts = state.settings.current_accounts();
-    if current_accounts.iter().any(|a| a.id == id) {
-        return json_error(&ApiError::bad_request(format!("account '{id}' already exists")));
-    }
-    let mut new_accounts = current_accounts;
-    new_accounts.push(AccountConfig {
+    let label = format!("Cuenta {n}");
+    let account = AccountConfig {
         id: id.clone(),
         label: label.clone(),
         enabled: true,
-    });
-    if let Err(err) = state.settings.update_accounts(new_accounts.clone()) {
+    };
+    accounts.push(account.clone());
+    if let Err(err) = state.settings.update_accounts(accounts) {
         return json_error(&ApiError::internal(err));
     }
-    // Create the hidden window for the new account.
     if let Some(app_handle) = crate::APP_HANDLE.get() {
-        let account = AccountConfig {
-            id: id.clone(),
-            label: label.clone(),
-            enabled: true,
-        };
-        if let Err(err) = create_account_with_bridge(app_handle, &account, false) {
-            eprintln!(
-                "zapdude: could not create hidden window for account '{}': {}",
-                account.id, err
-            );
-        }
+        let handle = app_handle.clone();
+        std::thread::spawn(move || {
+            if let Err(err) = crate::window::create_account_webview_hidden(&handle, &account) {
+                eprintln!(
+                    "zapdude: could not create webview for account '{}': {}",
+                    account.id, err
+                );
+            }
+        });
     }
-    json_ok(json!({ "id": id, "label": label }))
+    json_ok(json!({ "id": id, "label": label, "created": true }))
 }
 
-async fn remove_account_http(
-    Path(id): Path<String>,
-) -> (StatusCode, Json<Value>) {
-    let settings = match settings() {
-        Some(s) => s,
-        None => {
-            return json_error(&ApiError::internal("app state not initialized"));
-        }
+async fn remove_account_http(Path(id): Path<String>) -> (StatusCode, Json<Value>) {
+    let Some(state_settings) = settings() else {
+        return json_error(&ApiError::internal("app state not initialized"));
     };
-    let before = settings.current_accounts().len();
-    let accounts: Vec<AccountConfig> = settings
+    let before = state_settings.current_accounts().len();
+    let accounts: Vec<AccountConfig> = state_settings
         .current_accounts()
         .into_iter()
         .filter(|a| a.id != id)
@@ -428,76 +428,46 @@ async fn remove_account_http(
     if accounts.len() == before {
         return json_error(&ApiError::bad_request(format!("account '{id}' not found")));
     }
-    if let Err(err) = settings.update_accounts(accounts) {
+    if let Err(err) = state_settings.update_accounts(accounts) {
         return json_error(&ApiError::internal(err));
     }
-    // Hide the window if it exists.
     if let Some(app_handle) = crate::APP_HANDLE.get() {
-        if let Some(window) = app_handle.get_webview_window(&account_window_label(&id)) {
-            let _ = window.hide();
-        }
+        crate::window::close_account_webview(app_handle, &id);
     }
     json_ok(json!({ "id": id }))
 }
 
-async fn open_account_http(
-    Path(id): Path<String>,
-) -> (StatusCode, Json<Value>) {
-    let settings = match settings() {
-        Some(s) => s,
-        None => {
-            return json_error(&ApiError::internal("app state not initialized"));
-        }
+async fn open_account_http(Path(id): Path<String>) -> (StatusCode, Json<Value>) {
+    let Some(state_settings) = settings() else {
+        return json_error(&ApiError::internal("app state not initialized"));
     };
-    let account = match settings.account(&id) {
-        Some(a) => a,
-        None => {
-            return json_error(&ApiError::bad_request(format!("account '{id}' not found")));
-        }
+    let Some(account) = state_settings.account(&id) else {
+        return json_error(&ApiError::bad_request(format!("account '{id}' not found")));
     };
-    let app_handle = match crate::APP_HANDLE.get() {
-        Some(h) => h.clone(),
-        None => {
-            return json_error(&ApiError::internal("app handle not available"));
-        }
-    };
-    // If window exists, show it; otherwise create it.
-    if let Some(window) = app_handle.get_webview_window(&account_window_label(&id)) {
-        if let Err(err) = window.show() {
-            return json_error(&ApiError::internal(err.to_string()));
-        }
-        if let Err(err) = window.set_focus() {
-            return json_error(&ApiError::internal(err.to_string()));
-        }
-    } else {
-        if let Err(err) = create_account_with_bridge(&app_handle, &account, true) {
-            return json_error(&ApiError::internal(err.to_string()));
-        }
+    if let Some(app_handle) = crate::APP_HANDLE.get() {
+        let handle = app_handle.clone();
+        std::thread::spawn(move || {
+            if let Err(err) = crate::window::open_account_webview(&handle, &account) {
+                eprintln!("zapdude: could not open account '{}': {}", account.id, err);
+            }
+        });
     }
     json_ok(json!({ "id": id, "opened": true }))
 }
 
-async fn hide_account_http(
-    Path(id): Path<String>,
-) -> (StatusCode, Json<Value>) {
-    let app_handle = match crate::APP_HANDLE.get() {
-        Some(h) => h.clone(),
-        None => {
-            return json_error(&ApiError::internal("app handle not available"));
-        }
-    };
-    if let Some(window) = app_handle.get_webview_window(&account_window_label(&id)) {
-        if let Err(err) = window.hide() {
+async fn hide_account_http(Path(id): Path<String>) -> (StatusCode, Json<Value>) {
+    if let Some(app_handle) = crate::APP_HANDLE.get() {
+        if let Err(err) = crate::window::hide_account_content(app_handle, &id) {
             return json_error(&ApiError::internal(err.to_string()));
         }
         json_ok(json!({ "id": id, "hidden": true }))
     } else {
-        json_error(&ApiError::bad_request(format!("window for account '{id}' not found")))
+        json_error(&ApiError::internal("app handle not available"))
     }
 }
 
 // -------------------------------------------------------------------------
-// Automation handlers (require auth)
+// Automation handlers (require API key + enabled)
 // -------------------------------------------------------------------------
 
 async fn status(
@@ -506,6 +476,9 @@ async fn status(
     RawQuery(raw): RawQuery,
 ) -> (StatusCode, Json<Value>) {
     if let Err(err) = authorize_call(&headers) {
+        return json_error(&err);
+    }
+    if let Err(err) = require_api_enabled(&state) {
         return json_error(&err);
     }
     let params = parse_query_to_map(raw.as_deref());
@@ -581,15 +554,15 @@ async fn open_chat(
     if let Err(err) = authorize_call(&headers) {
         return json_error(&err);
     }
+    if let Err(err) = require_api_enabled(&state) {
+        return json_error(&err);
+    }
     let phone = body.get("phone").and_then(Value::as_str).unwrap_or("");
     if phone.is_empty() {
         return json_error(&ApiError::bad_request("phone is required"));
     }
     let text = body.get("text").and_then(Value::as_str);
-    let account_id = match resolve_account_id(
-        &state,
-        body.get("account").and_then(Value::as_str),
-    ) {
+    let account_id = match resolve_account_id(&state, body.get("account").and_then(Value::as_str)) {
         Ok(id) => id,
         Err(err) => return json_error(&err),
     };
@@ -610,15 +583,15 @@ async fn message(
     if let Err(err) = authorize_call(&headers) {
         return json_error(&err);
     }
+    if let Err(err) = require_api_enabled(&state) {
+        return json_error(&err);
+    }
     let phone = body.get("phone").and_then(Value::as_str).unwrap_or("");
     let text = body.get("message").and_then(Value::as_str).unwrap_or("");
     if phone.is_empty() || text.is_empty() {
         return json_error(&ApiError::bad_request("phone and message are required"));
     }
-    let account_id = match resolve_account_id(
-        &state,
-        body.get("account").and_then(Value::as_str),
-    ) {
+    let account_id = match resolve_account_id(&state, body.get("account").and_then(Value::as_str)) {
         Ok(id) => id,
         Err(err) => return json_error(&err),
     };
@@ -637,6 +610,9 @@ async fn chats(
     RawQuery(raw): RawQuery,
 ) -> (StatusCode, Json<Value>) {
     if let Err(err) = authorize_call(&headers) {
+        return json_error(&err);
+    }
+    if let Err(err) = require_api_enabled(&state) {
         return json_error(&err);
     }
     let params = parse_query_to_map(raw.as_deref());
@@ -665,6 +641,9 @@ async fn events(
     if let Err(err) = authorize_call(&headers) {
         return json_error(&err);
     }
+    if let Err(err) = require_api_enabled(&state) {
+        return json_error(&err);
+    }
     let params = parse_query_to_map(raw.as_deref());
     let since = params.get("since").cloned();
     let history = state.bus.since(since.as_deref());
@@ -679,6 +658,9 @@ async fn events_stream(
     (StatusCode, Json<Value>),
 > {
     if let Err(err) = authorize_call(&headers) {
+        return Err(json_error(&err));
+    }
+    if let Err(err) = require_api_enabled(&state) {
         return Err(json_error(&err));
     }
     let receiver = state.bus.subscribe();
@@ -707,6 +689,9 @@ async fn webhook_get(
     if let Err(err) = authorize_call(&headers) {
         return json_error(&err);
     }
+    if let Err(err) = require_api_enabled(&state) {
+        return json_error(&err);
+    }
     let (url, _secret) = state.bus.webhook_config();
     json_ok(json!({ "url": url, "configured": !url.is_empty() }))
 }
@@ -719,10 +704,10 @@ async fn webhook_post(
     if let Err(err) = authorize_call(&headers) {
         return json_error(&err);
     }
-    let url = body
-        .get("url")
-        .and_then(Value::as_str)
-        .unwrap_or_default();
+    if let Err(err) = require_api_enabled(&state) {
+        return json_error(&err);
+    }
+    let url = body.get("url").and_then(Value::as_str).unwrap_or_default();
     let url = if url.trim().is_empty() {
         String::new()
     } else if url.starts_with("http://") || url.starts_with("https://") {

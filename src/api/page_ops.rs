@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use serde_json::{json, Value};
-use tauri::webview::WebviewWindow;
+use tauri::webview::Webview;
 use tauri::Wry;
 use tokio::sync::oneshot;
 use tokio::sync::Mutex as AsyncMutex;
@@ -51,10 +51,10 @@ pub fn page_for(account: Option<&str>) -> Option<Arc<PageBridge>> {
     }
 }
 
-/// Create the bridge for an account window and start its polling loop.
+/// Create the bridge for an account webview and start its polling loop.
 pub fn install(
     account_id: &str,
-    window: WebviewWindow<Wry>,
+    window: Webview<Wry>,
     bus: Arc<super::events::ApiEventBus>,
 ) -> Arc<PageBridge> {
     let registry = PAGE_BRIDGES.get_or_init(|| Mutex::new(HashMap::new()));
@@ -112,7 +112,7 @@ fn js_number(value: u32) -> String {
 
 pub struct PageBridge {
     pub account_id: String,
-    window: WebviewWindow<Wry>,
+    window: Webview<Wry>,
     bus: Arc<super::events::ApiEventBus>,
     /// Serialize mutation flows: URL navigation plus composer interactions
     /// must never interleave between two callers.
