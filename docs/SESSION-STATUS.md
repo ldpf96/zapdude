@@ -1,13 +1,20 @@
 # Session status - Zapdude (Rust)
 
 > Continuity document for AI agents and future sessions. Last updated:
-> 2026-10-28 (evening, v8).
+> 2026-10-28 (evening, v9, END OF DAY state).
 
-> **Next immediate step**: the user is LIVE TESTING the newest install
-> (binary 2026-10-28, English UI v1.1.0). Verification pending from the
-> user: green icon in tray/taskbar after the icon cache purge (already
-> done once), real call pop-out test, scanning a real QR. CI for Linux
-> builds pending a run decision (see Round 9).
+> **NEXT SESSION FIRST ACTIONS** (in order):
+> 1. `& "C:\Program Files\GitHub CLI\gh.exe" auth refresh -h github.com
+>    -s workflow` : prints a device code for the user (github.com/login/
+>    device). The push of the CI workflow was REJECTED without that scope.
+> 2. Push main (it should be one docs commit ahead after this session)
+>    and then merge `ci/linux-build` into main (or rebase) and push.
+> 3. `gh workflow run build.yml --ref main -f tag=v1.1.0` : builds the
+>    Linux deb + AppImage for release v1.1.0 and uploads them to the
+>    existing release. Watch with `gh run watch`. If it fails, ONE fix
+>    attempt, then drop Linux per the user's rule.
+> 4. macOS stays DISCARDED on purpose (Tauri 2 multi webview runs on
+>    Windows + Linux only; documented in the workflow and the notes).
 
 > The app is named **Zapdude** ("dude" lowercase, first letter
 > capital: it is exactly "Zapdude", NEVER "ZapDude").
@@ -168,12 +175,32 @@ Requirements from the user, in importance order:
   release v1.0.0 carrying the NSIS). Windows icon cache explained the
   "still gray" report; purge + Explorer restart fixed it; verified with
   a taskbar crop screenshot (green with black bolt, running indicator).
-- R9 (this round): full English pass (UI, docs, comments, tray,
-  installer languages, default labels "Account N"), em dash purge,
-  honest attribution rewrite in NOTICE/README/About (design reference
-  ZapZap, implementation substantially different, AI assistance named:
-  OpenCode + GLM-5.3 vibe coding), version bump to 1.1.0, NSIS English
-  only, CI attempt for Linux/macOS builds.
+- R9 (done): full English pass (UI drawer/rail/welcome, tray menus,
+  installer languages English only, default labels "Account N", docs:
+  README, NOTICE, CHANGELOG, architecture, SESSION-STATUS, release
+  notes; em dash and smart punctuation purge). Honest origin note in
+  NOTICE/README/About: ZapZap by Rafael Tosta was the design and
+  behavior reference, early versions tried to feel like ZapZap, the
+  shipped implementation is substantially different on its own stack;
+  AI assistance named (OpenCode + GLM-5.3 by Z.ai, vibe coding).
+  Version bumped to 1.1.0, tests 14/14, NSIS built, silently installed
+  at 15:56, drawer served English was verified over HTTP.
+- R9 (done): v1.1.0 released with the Windows installer asset and the
+  English notes; the v1.0.0 release body was edited into English too
+  (kept for history).
+- R9 (BLOCKED, start of next session): the CI commit
+  (`ci/linux-build` branch, commit "ci: linux builds (deb + AppImage)
+  for release tags") cannot be pushed WITHOUT the `workflow` OAuth
+  scope. The user left for the day before completing `gh auth refresh
+  -s workflow`. The branch `ci/linux-build` holds the commit so main
+  stays clean and synced with the remote. After the scope refresh:
+  rebase/merge into main, push, dispatch the build with
+  `-f tag=v1.1.0`.
+- R9 (decision): macOS builds are DISCARDED permanently without a CI
+  attempt: this shell needs Tauri 2 multi webview, which upstream
+  supports on Windows and Linux only. The rule is written into
+  `.github/workflows/build.yml` (on the ci/linux-build branch, unpushed
+  for now) and into docs/release-notes-1.1.0.md.
 
 ## Verification state (latest evidence)
 
@@ -190,17 +217,19 @@ Requirements from the user, in importance order:
 
 ## Pending
 
-- CI for Linux builds (GitHub Actions): attempt, and if it needs
-  unusual effort, DROP it per user instruction (macOS is NOT viable for
-  this shell: Tauri multi-webview is Windows/Linux only, so the macOS
-  build is discarded without a CI run).
-- User live tests: scan a real QR, receive a call and pop it out,
-  confirm the green icon in taskbar and tray after a restart.
-- Redesign push events (Notifications hook is currently partial; the
-  API works in passive mode: status/chats/send/open-chat).
-- Keep the release notes and CHANGELOG in English going forward.
-- The rail icon set (calls/favorites/etc. original-style rail icons)
+- CI for Linux builds (GitHub Actions): BLOCKED on the `workflow` OAuth
+  scope (see NEXT SESSION FIRST ACTIONS). The workflow job exists on the
+  local branch `ci/linux-build` and is expected to work with ubuntu-24.04
+  + the standard webkit2gtk-4.1 dependency set.
+- User live tests pending since R7: scan a real QR, receive a call and
+  pop it out, confirm the green icon after any fresh icon cache
+  situation. The English UI has only been verified over HTTP (drawer
+  HTML) not by the user's eyes yet.
+- Redesign push events: the Notification hook is partial; passive API
+  works (status/chats/send/open-chat).
+- The rail icon set (calls/favorites/etc., original-style rail icons)
   stays parked until the user asks.
+- Keep everything in English going forward (repo rule, user decision).
 
 ## Useful commands
 
