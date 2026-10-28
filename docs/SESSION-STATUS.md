@@ -1,7 +1,25 @@
 # ESTADO DE LA SESIÓN — ZapDude (Rust)
 
-> Documento de continuidad para agentes/compaction. Última actualización: 2026-10-28 (noche).
-> La app se llama **ZapDude** (el usuario la renombró; mantener crédito a Rafael Tosta por ZapZap). Estado verificado con capturas de ventana. Instalador: `ZapDude_1.0.0_x64-setup.exe`.
+> Documento de continuidad para agentes/compaction. Última actualización: 2026-10-28 (noche, v3).
+>
+> **SIGUIENTE PASO INMEDIATO**: el usuario va a COMPACTAR la sesión y luego enviará
+> MÁS FEEDBACK (dijo: "ahorita te doy más feedback"). Estar atento a capturas.
+>
+> La app se llama **ZapDude** (el usuario la renombró; mantener crédito a Rafael
+> Tosta por ZapZap). Todo verificado con capturas de ventana reales (PrintWindow
+> + PW_RENDERFULLCONTENT). Instalador actual:
+> `C:\Users\PC\Desktop\Projects\Zapdude\zapdude-rs\target\release\bundle\nsis\ZapDude_1.0.0_x64-setup.exe`
+> (~2.84 MiB).
+
+## Estado actual del usuario (importante)
+
+- En su máquina quedó UNA cuenta: `account-1` ("Cuenta 1", sin loguear, muestra QR).
+- El usuario tenía la cuenta "default" LOGUEADA (vio su lista de chats real
+  funcionando) pero la BORRÓ durante pruebas en vivo — el perfil WebView2 de esa
+  sesión sigue en `%APPDATA%\app.zapzap.desktop\webview\default` (huérfano: si
+  volviera a existir un account "default" recuperaría esa sesión).
+- Las capturas mostraron: WhatsApp logueado renderiza perfecto, cambio de cuenta
+  <350ms, drawer de opciones funcional, promo card de descarga eliminado.
 
 ## Qué es este proyecto
 
@@ -16,7 +34,8 @@ Requisitos del usuario (en orden de importancia):
    avatares, click en "+" agrega cuenta SIN FORMULARIOS → QR → escanear → entrar.
    El usuario dijo: "hazlo en un principio igual [al original] y si quieres a
    partir de ahí lo mejoras".
-2. **Interfaz humana** profesional (estilo ZapZap/Apple, dark teal + verde WhatsApp).
+2. **Interfaz humana** profesional — "más premium, más profesional" — que la gente
+   quiera usarlo.
 3. **API local** en loopback para humanos y **agentes de IA** (REST + SSE + webhook HMAC).
 4. **Llamadas/vídeo/pantalla** funcionando (identidad Chrome 156 en JS).
 5. **Sin terminal** al abrir, **instalador Windows NSIS**, desinstalación completa.
@@ -25,25 +44,35 @@ Requisitos del usuario (en orden de importancia):
 ## Ubicaciones
 
 - **Proyecto**: `C:\Users\PC\Desktop\Projects\Zapdude\zapdude-rs`
-- **Instalador**: `target\release\bundle\nsis\ZapZap_1.0.0_x64-setup.exe` (~2.83 MiB)
+- **Instalador**: `target\release\bundle\nsis\ZapDude_1.0.0_x64-setup.exe` (~2.84 MiB)
 - **Config runtime**: `%APPDATA%\app.zapzap.desktop\config.json`
   (camelCase, tolerante a BOM: `api{enabled,port,apiKey,exposeNetwork,webhookUrl,webhookSecret}` + `accounts[{id,label,enabled}]`)
 - **Perfiles WebView2**: `%APPDATA%\app.zapzap.desktop\webview\<account-id>`
 - **ZapZap original (referencia, NO tocar)**: `C:\Users\PC\Desktop\Projects\Zapdude\zapzap-main`
-- **tauri CLI prebuilt**: `zapdude-rs\tools\tauri.exe` (usar: `.\\tools\\tauri.exe build --bundles nsis`)
+- **tauri CLI prebuilt**: `zapdude-rs\tools\tauri.exe` (usar: `.\tools\tauri.exe build --bundles nsis`)
 
-## Arquitectura actual (post-fix gray-page)
+## Arquitectura actual (v3 — drawer + position-only parking)
 
 **UNA ventana "main"** (Tauri 2, feature `unstable`, multi-webview):
 - Webview `rail` (76px lógico, izquierda): `rail.html` servido POR el API server.
-  Logo ⚡, avatares circulares por cuenta (anillo verde=activa, punto: verde=conectado,
-  naranja=espera QR, gris=cargando), botón "+" (crea cuenta sin formulario, id auto
-  `account-N`, label `Cuenta N`, **abre el QR al instante** — comportamiento ZapZap
-  original), **eliminar cuenta = clic derecho sobre el avatar** → se "arma" (rojo ×,
-  animación pulso) → clic de nuevo elimina; Esc o 4s desarma (sin overlays — el
-  confirm-box viejo quedaba recortado dentro del rail de 76px).
-  El badge del avatar muestra el NÚMERO de la cuenta ("Cuenta 3" → "3").
-- Webview `welcome`: solo backdrop de marca (ya casi nunca se ve).
+  Solo: **logo ZapDude (rayito SVG) arriba** → **avatares** (squircles 44px con el
+  rayito ZapDude — SIN letras/números; activa = anillo verde + glow; dot de estado:
+  verde=conectada, naranja=espera QR, gris=cargando) → **botón "+"** abajo.
+  Sin footer, sin tuerquita, sin ⓘ, sin versión, sin divisoria (todo eso vive en
+  el drawer). Poll cada 2.5s con **diff incremental de DOM** (renderRail por
+  dataset.id — sin flicker).
+  - **Logo = toggle drawer de opciones** (POST /api/ui/drawer).
+  - Click en avatar = abrir/cambiar a esa cuenta.
+  - **Eliminar cuenta**: clic derecho sobre el avatar lo "arma" (rojo ×, pulso) →
+    clic de nuevo elimina; Esc o clic en otro lo desarma (SIN auto-desarme de
+    tiempo — un timer de 4s se comía los clicks lentos y "no dejaba borrar").
+- Webview `welcome`: backdrop técnico (NUNCA es destino de ningún flujo).
+- **Webview `drawer`** (LAZY, se crea al primer toggle para quedar ENCIMA de las
+  cuentas): `drawer.html` servido por el server — panel de 380px sobre el contenido
+  con secciones separadas: **Configuración API** (toggle + badge Activa/Desactivada,
+  puerto, clave, webhook, guardar), **Agente de IA** (endpoints), **Acerca de**
+  (ZapDude, AGPL-3.0, crédito Rafael Tosta). Cierra con X o Esc. La ventana
+  "settings" separada quedó en el código PERO la UI ya no la usa.
 - Webviews `account-<id>`: WhatsApp Web (`https://web.whatsapp.com`), cada uno con:
   - `data_directory` aislado (perfil propio por cuenta)
   - UA Chrome 156.0.8078.49 + `client_hints_fix.js` (identidad JS para llamadas) —
@@ -51,10 +80,11 @@ Requisitos del usuario (en orden de importancia):
   - `api_page_bridge.js` — **INYECTADO DIFERIDO** (ver "Lección crítica")
   - `hide_download_banners.js` — **REESCRITO SEGURO** (ver "Lección crítica")
   - Permisos auto-Allow: Microphone, Camera, DisplayCapture, Notifications, ClipboardRead, PointerLock
-- **VISIBILIDAD (modelo parked 1×1)**: el webview activo va en `(RAIL_WIDTH, 0)` a
-  tamaño completo; los inactivos se "parquean" en el MISMO x pero a **1×1 px**
-  (nunca `hide()` — WebView2 los dejaba grises al re-mostrarlos). El tránsito
-  activo↔parqueado siempre cambia el TAMAÑO real → WebView2 re-compone seguro.
+- **VISIBILIDAD (modelo parked offscreen, position-only)**: el webview activo va
+  en `(RAIL_WIDTH, 0)` a tamaño completo; los inactivos van a **x=-24000
+  (PARKED_X) TAMBIÉN A TAMAÑO COMPLETO**. El switch es SOLO movimiento de
+  posición → WhatsApp NO re-renderiza → cambio instantáneo (<350ms medidos).
+  (El modelo anterior 1×1 forzaba re-render completo de WhatsApp: 2-3s por switch.)
 - **Arranque (orden crítico en main.rs setup)**:
   1. `enforce_single_instance()` (mutex `Local\app.zapzap.desktop.single`; 2ª
      instancia sale inmediatamente — evita peleas de puerto/config)
@@ -70,14 +100,17 @@ Requisitos del usuario (en orden de importancia):
   si `add_child` responde "already exists" se trata como éxito (no fallar el open).
 - Ventana "settings" separada (`settings.html?tab=api|agent|about`), servida por el server.
 - Cerrar ventana main = ocultar (tray mantiene la app viva).
-- Tray: "Mostrar <cuenta>" por cuenta, "Ocultar ventanas", "Salir de ZapZap".
+- Tray: "Mostrar <cuenta>" por cuenta, "Ocultar ventanas", "Salir de ZapDude".
 - API server: bind con RETRY (40 × 250ms) — el restart tras `POST /api/config`
   fallaba con error 10048 (puerto aún ocupado por el listener viejo).
+- `list_accounts` responde AL INSTANTE con caché de session_state (TTL 2.5s,
+  refresco en background con tokio::spawn) — el rail ya no espera 1.2s de snapshots.
 
 **Clave del diseño**: el **API server sirve la propia UI** (`GET /` → rail.html,
-`GET /welcome`, `GET /settings` — embebidos con include_str!). Rail/panel hacen
-`fetch` **mismo-origen** → imposible fallar por CORS/IPC/file://. NO se usa Tauri IPC
-para la UI (los comandos de `app_commands.rs` siguen registrados pero la UI usa HTTP).
+`GET /welcome`, `GET /settings`, `GET /drawer` — embebidos con include_str!). Todas
+las páginas hacen `fetch` **mismo-origen** → imposible fallar por CORS/IPC/file://.
+NO se usa Tauri IPC para la UI (los comandos de `app_commands.rs` siguen
+registrados pero la UI usa HTTP).
 
 ## ⚠️ LECCIÓN CRÍTICA — la "página gris" (2 causas encadenadas)
 
@@ -89,8 +122,10 @@ el QR — `session_state: scan_qr`). Verificado con capturas PrintWindow
 **Causa raíz 1 — webviews creados ocultos o nacidos enano quedan grises para
 siempre.** WebView2 (child webviews en wry 0.57) solo arranca su pipeline de
 composición si nace a tamaño real en el slot de contenido. Fix: nacer a tamaño
-completo + modelo parked 1×1 (ver arriba). Ni `hide()/show()` ni moverlo desde
-x=-24000 evitan el gris; el cambio de TAMAÑO real sí re-compone.
+completo + parqueo por POSICIÓN (x=-24000, tamaño completo — ver Arquitectura).
+NOTA: al inicio se creyó que el parking offscreen también causaba gris y se pasó
+por 1×1; después de arreglar la causa raíz 2 se comprobó que el parking offscreen
+funciona perfecto y es el que da switches instantáneos.
 
 **Causa raíz 2 — `hide_download_banners.js` (versión vieja) borraba la página.**
 Su barrido genérico marcaba `__zapdudeChecked` por nodo y ocultaba cualquier
@@ -137,11 +172,13 @@ solo si TODOS los hijos quedan display:none computado, contenedores de ≤4 hijo
 6. `windows_subsystem = "windows"` en main.rs (sin consola).
 7. Rate limit 60/min, body 1MB, ring 200 eventos, SSE keep-alive 15s.
 8. 14 tests unitarios (`cargo test`) SIEMPRE en verde antes de entregar.
-9. (HOY) Server ANTES de shell; auto-open primera cuenta; parked 1×1; nacer a
-   tamaño completo; "already exists" no fatal; hide-banners reescrito smallest-node;
-   eventos push del bridge desactivados; bind con retry; single-instance mutex;
-   deleteAppDataOnUninstall no soportado por el tauri-build local → NSIS hook
-   `installerHooks: ./windows/installer-hooks.nsh` (RMDir /r del data dir al desinstalar).
+9. (HOY) Server ANTES de shell; auto-open primera cuenta; nacer a tamaño completo;
+   parqueo offscreen position-only (switch instantáneo); "already exists" no fatal;
+   hide-banners reescrito smallest-node + zonas protegidas; eventos push del bridge
+   desactivados; bind con retry; single-instance mutex; drawer de opciones en la
+   misma ventana; caché de session_state; deleteAppDataOnUninstall no soportado
+   por el tauri-build local → NSIS hook `installerHooks: ./windows/installer-hooks.nsh`
+   (RMDir /r del data dir al desinstalar).
 
 ## Commits (en orden)
 
@@ -215,22 +252,27 @@ solo si TODOS los hijos quedan display:none computado, contenedores de ≤4 hijo
 - Banners: título "Descarga WhatsApp para Windows" oculto de forma segura
   (puede quedar la tira del promo con icono+botón en el landing del QR — solo se
   ve antes de escanear; afinar después inspeccionando el DOM real).
-- Tests 14/14. Build release + NSIS 2.83 MiB OK.
+- Tests 14/14. Build release + NSIS OK (`ZapDude_1.0.0_x64-setup.exe`, 2.84 MiB).
+- (Round 3) Drawer abre/cierra sobre el contenido; rail solo logo→cuentas→"+";
+  switch instantáneo con parking position-only; rail sin flicker (diff DOM).
 
-## PENDIENTE
+## PENDIENTE (el usuario compactará y enviará MÁS FEEDBACK — estar atento a capturas)
 
-- Prueba manual del usuario con el instalador NUEVO (desinstalar el viejo +
-  borrar `%APPDATA%\app.zapzap.desktop` opcionalmente — el hook NSIS ya lo borra
-  al desinstalar).
+- **Más feedback del usuario** tras la compactación — es la prioridad inmediata.
+- Prueba de instalación limpia del `ZapDude_1.0.0_x64-setup.exe` (desinstalar el
+  viejo; el hook NSIS borra `%APPDATA%\app.zapzap.desktop` al desinstalar).
 - Rediseñar los eventos push (notificaciones → API/webhook) de forma segura
   (sin hooks globales frágiles): idealmente vía CDP/WebMessageReceived o polling
-  del host en vez de MutationObservers.
-- Banner del landing: si molesta la tira restante, inspeccionar el DOM real y
-  añadir reglas estructurales seguras.
-- Mejoras UI pedidas: estilo aún más pro (Apple-like), tabs adicionales
-  (Canales, favoritos, mute, descargas, donar) — decidir alcance tras validar.
-- Llamadas/pantalla y QR real requieren prueba manual del usuario (identidad
-  Chrome 156 ya activa con UA + client hints).
+  del host en vez de MutationObservers. Hoy la API pasiva funciona
+  (status/chats/send/open-chat) pero SIN eventos espontáneos.
+- Iconos del rail estilo original (llamadas, favoritos, canales, etc.) y tabs
+  adicionales (Canales, favoritos, mute, descargas, donar) — el usuario aún no
+  lo pide formalmente para esta ronda; decidir alcance tras su feedback.
+- Llamadas/pantalla requieren prueba manual del usuario (identidad Chrome 156
+  ya activa con UA + client hints).
+- Limpieza menor: ventana "settings" + endpoint `/api/ui/settings` +
+  `app_commands.rs` quedaron sin uso por la UI (código muerto inofensivo;
+  remover en una pasada de limpieza si se quiere).
 
 ## Comandos útiles
 
