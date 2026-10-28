@@ -139,8 +139,31 @@ pub fn start_loopback_server() {
             };
             let app = router(state);
             let serve = async {
-                match tokio::net::TcpListener::bind(&bind_addr).await {
-                    Ok(listener) => {
+                // Bind with retries: right after a config-triggered restart
+                // the previous listener may still hold the port for a moment
+                // (os error 10048). Without retries the API would stay dead.
+                let mut listener = None;
+                for attempt in 0..40u32 {
+                    match tokio::net::TcpListener::bind(&bind_addr).await {
+                        Ok(bound) => {
+                            listener = Some(bound);
+                            break;
+                        }
+                        Err(err) => {
+                            if attempt == 0 || attempt % 8 == 0 {
+                                eprintln!(
+                                    "zapdude: API bind retry #{} on {}: {}",
+                                    attempt + 1,
+                                    bind_addr,
+                                    err
+                                );
+                            }
+                            tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+                        }
+                    }
+                }
+                match listener {
+                    Some(listener) => {
                         if let Err(err) = axum::serve(
                             listener,
                             app.into_make_service_with_connect_info::<SocketAddr>(),
@@ -150,8 +173,8 @@ pub fn start_loopback_server() {
                             eprintln!("zapdude: API server stopped: {}", err);
                         }
                     }
-                    Err(err) => {
-                        eprintln!("zapdude: API bind failed on {}: {}", bind_addr, err);
+                    None => {
+                        eprintln!("zapdude: API bind failed on {} (gave up)", bind_addr);
                     }
                 }
             };
@@ -495,8 +518,8 @@ async fn list_accounts() -> (StatusCode, Json<Value>) {
 }
 
 /// Create an account the ZapZap way: no body required, ids are generated
-/// (`account-N` / `Cuenta N`). The webview is created hidden; use
-/// `/open` to switch to it and scan the QR.
+/// (`account-N` / `Cuenta N`). The new account's WhatsApp Web opens right
+/// away so the QR is immediately on screen.
 async fn add_account_http(State(state): State<ApiState>) -> (StatusCode, Json<Value>) {
     let mut accounts = state.settings.current_accounts();
     let mut n = accounts.len() + 1;
@@ -518,9 +541,9 @@ async fn add_account_http(State(state): State<ApiState>) -> (StatusCode, Json<Va
     if let Some(app_handle) = crate::APP_HANDLE.get() {
         let handle = app_handle.clone();
         std::thread::spawn(move || {
-            if let Err(err) = crate::window::create_account_webview_hidden(&handle, &account) {
+            if let Err(err) = crate::window::open_account_webview(&handle, &account) {
                 eprintln!(
-                    "zapdude: could not create webview for account '{}': {}",
+                    "zapdude: could not open new account '{}': {}",
                     account.id, err
                 );
             }

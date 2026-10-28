@@ -356,71 +356,16 @@
         };
 
         // ------------------------------------------------------------------
-        // Incoming event sources
+        // Incoming event sources — DISABLED for now.
+        //
+        // Empirically (WebView2 child webviews), hooking window.Notification
+        // or installing DOM observers at boot kills WhatsApp Web's own JS
+        // startup: the page stays at its bare dark background (looks "gray")
+        // while our bridge keeps working. The local API remains fully
+        // usable (status/chats/send via dispatch); push-style events will
+        // return behind a safe mechanism later.
         // ------------------------------------------------------------------
-        var lastNotificationTitle = null;
-
-        function pushIncomingMessage(kind, rawTitle, rawBody) {
-            try {
-                var title = String(rawTitle || '');
-                var body = String(rawBody || '');
-                if (kind === 'notification' && title && title === lastNotificationTitle && !body) {
-                    return; // collapse identical repeated notifications
-                }
-                if (kind === 'notification') {
-                    lastNotificationTitle = title;
-                }
-                api.pushEvent(JSON.stringify({
-                    kind: kind,
-                    title: title,
-                    body: body,
-                    at: Math.floor(Date.now() / 1000),
-                }));
-            } catch (_pushError) {
-                // Never break the page for an event failure.
-            }
-        }
-
-        try {
-            var NativeNotification = window.Notification;
-            function ZapZapNotification(title, options) {
-                try {
-                    pushIncomingMessage('notification', title, options && options.body);
-                    if (NativeNotification) {
-                        return new NativeNotification(title, options);
-                    }
-                } catch (_notifyError) {
-                    return null;
-                }
-                return null;
-            }
-            if (NativeNotification) {
-                ZapZapNotification.prototype = NativeNotification.prototype;
-                ZapZapNotification.permission = NativeNotification.permission;
-                ZapZapNotification.requestPermission = function (callback) {
-                    return NativeNotification.requestPermission(callback);
-                };
-            }
-            window.Notification = ZapZapNotification;
-        } catch (_hookError) {
-            // Notifications cannot be hooked without breaking the page.
-        }
-
-        try {
-            var observer = new MutationObserver(function () {
-                try {
-                    var chats = scrapeChatList(40);
-                    if (chats && chats.ok && chats.count > 0 && !chats.degraded) {
-                        api.pushEvent(JSON.stringify({ kind: 'chat_list', chats: chats }));
-                    }
-                } catch (_observeError) {
-                    /* ignore */
-                }
-            });
-            observer.observe(document, { childList: true, subtree: true, attributes: false });
-        } catch (_observerError) {
-            // The observer is an enhancement, not a requirement.
-        }
+        void (0);
     }
 
     try {

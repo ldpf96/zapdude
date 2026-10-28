@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>Bienvenido a ZapZap</title>
+  <title>ZapZap</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { height: 100%; }
@@ -19,24 +19,22 @@
       font-size: 48px; margin-bottom: 30px;
       box-shadow: 0 14px 50px rgba(37, 211, 102, 0.3);
     }
-    h1 { font-size: 28px; font-weight: 600; margin-bottom: 10px; }
-    p { color: #8696a0; font-size: 15px; line-height: 1.65; max-width: 480px; margin-bottom: 30px; }
+    h1 { font-size: 26px; font-weight: 600; margin-bottom: 10px; }
+    p { color: #8696a0; font-size: 14.5px; line-height: 1.6; max-width: 440px; margin-bottom: 26px; }
     .add {
       background: #25d366; color: #04231b; border: none; border-radius: 26px;
-      padding: 14px 36px; font-size: 15px; font-weight: 700; cursor: pointer;
+      padding: 13px 34px; font-size: 15px; font-weight: 700; cursor: pointer;
       transition: background 0.15s, transform 0.12s; font-family: inherit;
     }
     .add:hover { background: #1fbe5c; transform: translateY(-1px); }
     .add:disabled { opacity: 0.5; cursor: wait; }
-    .hint { margin-top: 28px; font-size: 12.5px; color: #54626f; }
   </style>
 </head>
 <body>
   <div class="logo">⚡</div>
-  <h1 id="title">Bienvenido a ZapZap</h1>
-  <p id="msg">Todas tus cuentas de WhatsApp en una sola ventana, con notificaciones en un único lugar y una API local para agentes de IA.</p>
+  <h1>ZapZap</h1>
+  <p id="msg">Todas tus cuentas de WhatsApp en una sola ventana, con una API local para agentes de IA.</p>
   <button class="add" id="addBtn">+ Agregar cuenta</button>
-  <div class="hint" id="hint">Escanea el código QR con tu teléfono, igual que en WhatsApp Web.</div>
 
   <script>
     "use strict";
@@ -51,20 +49,6 @@
       try { await api("/api/accounts", { method: "POST" }); } catch (e) { console.error(e); }
       ev.currentTarget.disabled = false;
     };
-
-    // If accounts already exist, invite the user to pick one from the rail.
-    (async () => {
-      try {
-        const data = await api("/api/accounts");
-        if ((data.accounts || []).length > 0) {
-          document.getElementById("title").textContent = "Selecciona una cuenta";
-          document.getElementById("msg").textContent =
-            "Toca uno de los iconos de la barra lateral para abrir su WhatsApp. Usa el botón “+” para agregar otra cuenta.";
-          document.getElementById("addBtn").textContent = "+ Agregar otra cuenta";
-          document.getElementById("hint").textContent = "Clic derecho sobre un icono para eliminar esa cuenta.";
-        }
-      } catch (_) {}
-    })();
   </script>
 </body>
 </html>

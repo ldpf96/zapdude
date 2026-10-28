@@ -23,6 +23,10 @@ use super::protocol::{normalize_e164, validate_message, ApiError};
 /// Chamfer between beacon polls (event transport only).
 const POLL_INTERVAL_MS: u64 = 30;
 
+/// Install the deferred page scripts once every N beacon ticks (~3 s at the
+/// 30 ms poll interval). The check itself is a no-op once installed.
+const DEFER_INSTALL_EVERY_TICKS: u64 = 100;
+
 /// Maximum time an automation call may wait for the page to answer.
 const CALL_TIMEOUT_MS: u64 = 15_000;
 
@@ -52,12 +56,21 @@ pub fn page_for(account: Option<&str>) -> Option<Arc<PageBridge>> {
 }
 
 /// Create the bridge for an account webview and start its polling loop.
+/// Idempotent: the FIRST install for an account wins (the poller thread is
+/// only spawned once per account).
 pub fn install(
     account_id: &str,
     window: Webview<Wry>,
     bus: Arc<super::events::ApiEventBus>,
 ) -> Arc<PageBridge> {
     let registry = PAGE_BRIDGES.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Some(existing) = registry
+        .lock()
+        .ok()
+        .and_then(|map| map.get(account_id).cloned())
+    {
+        return existing;
+    }
     let bridge = Arc::new(PageBridge {
         account_id: account_id.to_string(),
         window,
@@ -70,11 +83,33 @@ pub fn install(
     let poller = bridge.clone();
     let _ = std::thread::Builder::new()
         .name(format!("zapdude-beacon-{account_id}"))
-        .spawn(move || loop {
-            std::thread::sleep(std::time::Duration::from_millis(POLL_INTERVAL_MS));
-            if let Err(_failure) = poller.poll_beacons() {
-                // Temporary window/state errors are ignored; the loop keeps
-                // retrying, matching the "never break" behavior.
+        .spawn(move || {
+            // The deferred scripts (automation bridge + promo hider) are
+            // (re-)installed from here: the page may load/reload several
+            // times (QR refresh, reconnects), and a light idempotent eval
+            // every DEFER_INSTALL_EVERY_TICKS keeps them present without
+            // touching the page-start injection (which must stay small —
+            // see `startup_scripts`).
+            let deferred = crate::window::deferred_scripts();
+            let install_expression = if deferred.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    "if (window === window.top && !window.__zapZapApiV1) {{ try {{ {} }} catch (_e) {{}} }}",
+                    deferred
+                )
+            };
+            let mut ticks: u64 = 0;
+            loop {
+                std::thread::sleep(std::time::Duration::from_millis(POLL_INTERVAL_MS));
+                ticks = ticks.wrapping_add(1);
+                if !install_expression.is_empty() && ticks % DEFER_INSTALL_EVERY_TICKS == 0 {
+                    let _ = poller.window.eval(&install_expression);
+                }
+                if let Err(_failure) = poller.poll_beacons() {
+                    // Temporary window/state errors are ignored; the loop
+                    // keeps retrying, matching the "never break" behavior.
+                }
             }
         });
     bridge

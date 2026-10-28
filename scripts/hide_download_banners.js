@@ -1,16 +1,22 @@
 /**
  * ZapZap (Rust) — hide WhatsApp Web's "download the app" promos.
  *
- * WhatsApp Web keeps pushing banners, dialogs and toasts that recommend
- * installing the official Windows app. Inside ZapZap those recommendations
- * are noise (the user already runs a desktop client), so this script hides
- * them defensively:
- *   - matches by text (ES/EN) on dialogs, banners, toasts and landing cards;
- *   - survives WhatsApp markup changes (MutationObserver + periodic sweep);
- *   - never touches the QR code, chat UI or any functional element:
- *     elements are hidden with display:none only when the promo pattern
- *     matches, so a false positive costs at most one banner.
+ * SAFE VERSION. An earlier generic sweep hid any container whose text
+ * merely CONTAINED a promo phrase; WhatsApp's landing containers matched
+ * too and the whole page went invisible (bare dark background — looked
+ * like a "gray page" while the DOM stayed alive).
+ *
+ * This version can never blank the page:
+ *   1. Only the SMALLEST element matching the promo text gets hidden
+ *      (containers are skipped when a descendant already matches).
+ *   2. Then, walking UP from each hidden node, an ancestor is collapsed
+ *      only when EVERY one of its children is display:none (computed) and
+ *      it holds the promo — so a big ancestor dies only when all of its
+ *      content is already promo content.
+ *   3. QR, chat list, composer and any functional element never match the
+ *      promo pattern, so they are never candidates.
  */
+
 (function () {
     'use strict';
 
@@ -40,61 +46,95 @@
         'i'
     );
 
-    // Selectors known to host download promos on the WhatsApp Web landing
-    // screen (safe list: they only ever contain the promo itself).
-    var LANDED_PROMO_SELECTORS = [
-        '[data-zapdude-promo]',
-        'div[data-animate-modal-backdrop]',
-        '[role="dialog"][aria-modal="true"]'
-    ].join(', ');
+    var CANDIDATE_SELECTOR =
+        'div, aside, header, section, span, p, h1, h2, h3, button, a';
 
-    function elementText(node) {
-        var text = '';
-        if (node.getAttribute) {
-            text += ' ' + (node.getAttribute('aria-label') || '');
-        }
+    function matches(node) {
         try {
-            text += ' ' + (node.textContent || '');
+            var text = (node.getAttribute('aria-label') || '') + ' ' + (node.textContent || '');
+            return PROMO_PATTERN.test(text.slice(0, 400));
         } catch (_error) {
-            return '';
+            return false;
         }
-        return text.slice(0, 400);
     }
 
-    function looksLikePromo(node) {
-        if (!node || node.nodeType !== 1) {
+    function isHidden(node) {
+        try {
+            return node.style && node.style.display === 'none';
+        } catch (_error) {
             return false;
         }
-        var tag = node.tagName;
-        if (tag !== 'DIV' && tag !== 'ASIDE' && tag !== 'HEADER' && tag !== 'SECTION') {
-            return false;
-        }
-        return PROMO_PATTERN.test(elementText(node));
     }
 
     function hide(node) {
-        if (node.style && node.style.display !== 'none') {
-            node.style.setProperty('display', 'none', 'important');
+        try {
+            if (node.style && node.style.display !== 'none') {
+                node.style.setProperty('display', 'none', 'important');
+                collapseAncestors(node);
+            }
+        } catch (_error) {
+            // Never break the page because of cosmetics.
+        }
+    }
+
+    /// Hide the chain of ancestors that are left with only hidden children
+    /// (bounded climb, computed-style check). Started from a node that just
+    /// got hidden — so an ancestor can only die if ALL of its content was
+    /// promo content that is already hidden.
+    function collapseAncestors(start) {
+        var node = start;
+        for (var depth = 0; depth < 6; depth++) {
+            var parent = node.parentElement;
+            if (!parent || parent === document.body || parent === document.documentElement) {
+                return;
+            }
+            var children = parent.children;
+            if (children.length === 0 || children.length > 4) {
+                return; // keep mid-sized layouts alone
+            }
+            for (var i = 0; i < children.length; i++) {
+                var child = children[i];
+                var hidden = false;
+                try {
+                    hidden = getComputedStyle(child).display === 'none';
+                } catch (_error) {
+                    return;
+                }
+                if (!hidden) {
+                    return; // something else is still visible — stop climbing
+                }
+            }
+            try {
+                parent.style.setProperty('display', 'none', 'important');
+            } catch (_error) {
+                return;
+            }
+            node = parent;
         }
     }
 
     function sweep() {
         try {
-            // Landing-screen promos and modal backdrops are hidden outright.
-            document.querySelectorAll(LANDED_PROMO_SELECTORS).forEach(function (node) {
-                if (looksLikePromo(node)) {
-                    hide(node);
+            var candidates = document.querySelectorAll(CANDIDATE_SELECTOR);
+            for (var i = 0; i < candidates.length; i++) {
+                var node = candidates[i];
+                if (isHidden(node) || !matches(node)) {
+                    continue;
                 }
-            });
-            // Toast-style promos live in generic containers; match by text.
-            document.querySelectorAll('div, aside, header, section').forEach(function (node) {
-                if (!node.__zapdudeChecked) {
-                    node.__zapdudeChecked = true;
-                    if (looksLikePromo(node) && node.childElementCount <= 6) {
-                        hide(node);
+                // Only the SMALLEST matching element dies: skip containers
+                // when a descendant already matches the promo pattern.
+                var descendants = node.querySelectorAll(CANDIDATE_SELECTOR);
+                var smallest = true;
+                for (var j = 0; j < descendants.length; j++) {
+                    if (matches(descendants[j])) {
+                        smallest = false;
+                        break;
                     }
                 }
-            });
+                if (smallest) {
+                    hide(node);
+                }
+            }
         } catch (_error) {
             // Never break the page because of cosmetics.
         }
@@ -108,7 +148,7 @@
         scheduled = setTimeout(function () {
             scheduled = null;
             sweep();
-        }, 400);
+        }, 600);
     }
 
     function start() {

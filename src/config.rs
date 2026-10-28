@@ -230,6 +230,16 @@ impl SettingsState {
     pub fn update_accounts(&self, accounts: Vec<AccountConfig>) -> Result<(), String> {
         self.write(|file| {
             file.accounts = sanitize_accounts(accounts);
+            // TEMP DEBUG: catch unexpected account-list rewrites (a stale
+            // empty list would wipe user accounts). Remove after diagnosis.
+            if file.accounts.len() <= 1 {
+                eprintln!(
+                    "zapdude: DEBUG update_accounts -> {} account(s): {:?}",
+                    file.accounts.len(),
+                    file.accounts.iter().map(|a| a.id.clone()).collect::<Vec<_>>()
+                );
+                eprintln!("{}", std::backtrace::Backtrace::force_capture());
+            }
             self.persist_locked(file)
         })
     }

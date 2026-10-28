@@ -38,6 +38,12 @@
     }
     .avatar:hover { background: #1f3831; transform: scale(1.07); }
     .avatar.active { border-color: #25d366; background: #143329; box-shadow: 0 0 12px rgba(37,211,102,0.35); }
+    .avatar.armed {
+      border-color: #ef5350; background: #3a1414; color: #ff8a80;
+      box-shadow: 0 0 12px rgba(239, 83, 80, 0.5);
+      animation: pulse 1s ease-in-out infinite;
+    }
+    @keyframes pulse { 50% { transform: scale(1.12); } }
     .avatar .dot {
       position: absolute; right: -1px; bottom: -1px;
       width: 13px; height: 13px; border-radius: 50%;
@@ -54,6 +60,7 @@
       box-shadow: 0 6px 18px rgba(0,0,0,0.45); z-index: 20;
     }
     .avatar:hover .tooltip, .icon-btn:hover .tooltip, .add-btn:hover .tooltip { opacity: 1; }
+    .avatar.armed .tooltip { background: #4a1616; color: #ff8a80; opacity: 1; }
     .add-btn {
       width: 46px; height: 46px; border-radius: 50%;
       background: rgba(37, 211, 102, 0.10);
@@ -84,20 +91,6 @@
       background: #3a2a1a; color: #f0b232; font-size: 10px;
       padding: 3px 8px; border-radius: 6px; display: none; z-index: 30;
     }
-    .confirm-box {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.5);
-      display: none; align-items: center; justify-content: center; z-index: 50;
-    }
-    .confirm-box.show { display: flex; }
-    .confirm {
-      background: #16241f; border-radius: 16px; padding: 22px; width: 240px;
-      color: #e9edef; text-align: center; font-size: 13px; line-height: 1.5;
-      box-shadow: 0 16px 50px rgba(0,0,0,0.6);
-    }
-    .confirm .row { display: flex; gap: 8px; margin-top: 18px; justify-content: center; }
-    .confirm button { padding: 8px 16px; border-radius: 9px; border: none; font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: inherit; }
-    .c-cancel { background: #24332d; color: #e9edef; }
-    .c-del { background: #ef5350; color: #fff; }
   </style>
 </head>
 <body>
@@ -114,19 +107,11 @@
     </button>
     <div class="version" id="version">v1.0.0</div>
   </div>
-  <div class="confirm-box" id="confirmBox">
-    <div class="confirm">
-      <div id="confirmText">¿Eliminar esta cuenta y su sesión de WhatsApp?</div>
-      <div class="row">
-        <button class="c-cancel" onclick="closeConfirm()">Cancelar</button>
-        <button class="c-del" id="confirmDel">Eliminar</button>
-      </div>
-    </div>
-  </div>
 
   <script>
     "use strict";
-    let pendingRemove = null;
+    let armedId = null;
+    let armedTimer = null;
     let wasOffline = false;
 
     async function api(path, options) {
@@ -136,7 +121,22 @@
     }
 
     function esc(s) {
-      return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+      return String(s).replace(/[&<>\"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    }
+
+    // Avatar letter: the account number when the label has one ("Cuenta 3"
+    // shows "3"), otherwise the label's first letter.
+    function badge(label) {
+      const m = String(label || "").match(/(\d+)\s*$/);
+      return m ? m[1] : String(label || "?").charAt(0).toUpperCase();
+    }
+
+    function disarm() {
+      if (armedId) {
+        armedId = null;
+        clearTimeout(armedTimer);
+        loadRail();
+      }
     }
 
     // Self-heal: if the API goes away (port change / restart), show a badge
@@ -163,38 +163,36 @@
       rail.innerHTML = "";
       for (const a of accounts) {
         const el = document.createElement("div");
-        el.className = "avatar" + (a.active ? " active" : "");
+        const isArmed = armedId === a.id;
+        el.className = "avatar" + (a.active ? " active" : "") + (isArmed ? " armed" : "");
         const state = a.session_state === "logged_in" ? "logged" : a.session_state === "scan_qr" ? "qr" : "detecting";
         const stateLabel = a.session_state === "logged_in" ? "conectado" : a.session_state === "scan_qr" ? "espera QR" : "cargando";
-        el.innerHTML = esc((a.label || "?").charAt(0).toUpperCase()) +
+        el.innerHTML = esc(isArmed ? "×" : badge(a.label)) +
           `<span class="dot ${state}"></span>` +
-          `<span class="tooltip">${esc(a.label)} · ${stateLabel}</span>`;
-        el.onclick = () => api("/api/accounts/" + encodeURIComponent(a.id) + "/open", { method: "POST" }).catch(console.error);
-        el.oncontextmenu = (ev) => { ev.preventDefault(); openConfirm(a.id, a.label); };
+          `<span class="tooltip">${isArmed ? "Clic de nuevo para eliminar" : esc(a.label) + " · " + stateLabel}</span>`;
+        el.onclick = async () => {
+          if (armedId === a.id) {
+            try { await api("/api/accounts/" + encodeURIComponent(a.id), { method: "DELETE" }); } catch (e) { console.error(e); }
+            disarm();
+            return;
+          }
+          if (armedId) { disarm(); return; }
+          try { await api("/api/accounts/" + encodeURIComponent(a.id) + "/open", { method: "POST" }); } catch (e) { console.error(e); }
+        };
+        el.oncontextmenu = (ev) => {
+          ev.preventDefault();
+          if (armedId === a.id) { disarm(); return; }
+          disarm();
+          armedId = a.id;
+          loadRail();
+          armedTimer = setTimeout(disarm, 4000);
+        };
         rail.appendChild(el);
       }
     }
 
-    function openConfirm(id, label) {
-      pendingRemove = id;
-      document.getElementById("confirmText").textContent =
-        `¿Eliminar "${label}" y su sesión de WhatsApp?`;
-      document.getElementById("confirmBox").classList.add("show");
-    }
-    function closeConfirm() {
-      pendingRemove = null;
-      document.getElementById("confirmBox").classList.remove("show");
-    }
-    document.getElementById("confirmDel").onclick = async () => {
-      if (pendingRemove) {
-        try { await api("/api/accounts/" + encodeURIComponent(pendingRemove), { method: "DELETE" }); }
-        catch (e) { console.error(e); }
-      }
-      closeConfirm();
-      loadRail();
-    };
-
     document.getElementById("addBtn").onclick = async (ev) => {
+      disarm();
       const btn = ev.currentTarget;
       btn.disabled = true;
       try {
@@ -208,7 +206,7 @@
     document.getElementById("aboutBtn").onclick = () =>
       api("/api/ui/settings?tab=about", { method: "POST" }).catch(console.error);
 
-    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeConfirm(); });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") disarm(); });
 
     (async () => {
       try {
