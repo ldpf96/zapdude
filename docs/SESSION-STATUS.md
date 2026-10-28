@@ -275,6 +275,73 @@ solo si TODOS los hijos quedan display:none computado, contenedores de ≤4 hijo
   cuidado con replace global en JSON.
 - `withGlobalTauri: false` (no se usa IPC).
 
+## Round 5 (feedback 3: tema, anclaje, bandeja, autostart, icono, popouts, rail simétrico)
+
+- **DIAGNÓSTICO CLAVE**: el usuario estaba corriendo la app VIEJA instalada
+  (`C:\Users\PC\AppData\Local\ZapDude\zapdude.exe`, título "ZapDude", sin las
+  X ni nada de lo nuevo) — de ahí sus quejas de "no sale la X" y colores
+  viejos. También tenía el ZapZap original 7.5.1 corriendo desde Descargas.
+  Al final de la ronda se instala el NSIS nuevo en silencio.
+- **Reset del config a "default"** (account "default" zombi reapareció): fue
+  una CARRERA entre el binario viejo instalado y el nuevo — el viejo leyó un
+  config.json a medio escribir → parse fail → `unwrap_or_default` →
+  persistió el default. FIX: `SettingsState::load` ahora reintenta la lectura
+  (4 intentos × 60ms) ante JSON inválido; la carrera desaparece cuando solo
+  corre el binario nuevo (mismo mutex de instancia única).
+- **TEMA CLARO/OSCURO** (pedido explícito): nueva sección Preferencias en el
+  drawer con switch "Tema claro". Config: `AppPrefs { theme, autostart,
+  startMinimized }` (camelCase, serde default — compat con configs viejos).
+  Endpoints GET/POST /api/prefs (management, loopback). rail/drawer/welcome
+  leen prefs y aplican `data-theme` en `<html>` con overrides de variables
+  CSS (`:root[data-theme="light"]`). El rail re-chequea el tema cada 10s; el
+  drawer aplica al instante. El tema NO toca la página de WhatsApp (cada
+  cuenta usa el tema que tenga en WhatsApp).
+- **NAVEGADOR ANCLADO A LAS 4 ESQUINAS** (bug: "el chat desapareció, se
+  achicó de derecha a izquierda"): relayout ahora también corre en
+  `ScaleFactorChanged` y `Focused` (además de Resized), MÁS un watchdog de
+  geometría cada 2s (thread "zapdude-geometry") que re-alinea mientras la
+  ventana no esté minimizada. El drift de layout ya no sobrevive.
+- **BANDEJA ARREGLADA** ("Mostrar cuenta nada de eso funciona"): (1) al hacer
+  clic en "Mostrar <cuenta>" la ventana principal se muestra/des-minimiza/
+  enfoca ANTES de abrir el webview (mostrar un webview dentro de una ventana
+  oculta no hace nada visible — ese era el bug); (2) `refresh_tray` reconstruye
+  el menú vía `tray_by_id`+`set_menu` cuando se agrega/elimina/renomina una
+  cuenta (antes quedaba viejo); (3) clic IZQUIERDO en el icono de la bandeja
+  trae la ventana (`on_tray_icon_event`, menú con right-click);
+  (4) "Ocultar ventanas" ahora oculta TODAS las ventanas de verdad.
+- **AUTOSTART + INICIO MINIMIZADO** (pedido explícito): Preferencias →
+  "Iniciar con Windows" (HKCU Run key vía crate winreg, sin admin) y
+  "Iniciar minimizado" (arranca sin ventana, vive en la bandeja). Verificado:
+  POST prefs autostart:true escribe `HKCU\...\Run\Zapdude = <exe>`; false lo
+  borra (NotFound = ok).
+- **ICONO DE LA APP** (pedido: "el verde con rayito negro estaba bien bonito,
+  úsalo como logo del software"): generados icons/*.png (16..256) + icon.ico
+  multi-tamaño con GDI+ (scripts temporales en Temp/opencode): squircle verde
+  con degradado #34e877→#0f9e6c, highlight diagonal sutil y rayito negro
+  #04231a (path del rail escalado 62%). La bandeja y el exe lo usan.
+- **POPOUT DE LLAMADAS** ("modifica tu navegador para que permita popups"):
+  wry con handler ausente hace `SetHandled(true)` = NIEGA todos los popups.
+  `account_webview_builder` ahora añade `on_new_window` → `popup_window()`:
+  crea un WebviewWindow REAL (movible a cualquier lado) que comparte el
+  `environment` del opener (ICoreWebView2Environment — misma sesión/cookies,
+  requisito de WebView2) + UA Chrome + client-hints + permisos; tamaño del
+  `features.size()` (default 480×640). Labels `popup-<account>-<n>`.
+- **RAIL SIMÉTRICO**: espaciado UNIFORME de 12px (logo→divisoria→cuentas→"+")
+  — antes el gap logo→cuenta (18px padding) era mayor que cuenta→cuenta
+  (10px), "rancio". El "+" ya NO está clavado abajo: vive DENTRO del flujo
+  como último tile (sube/baja al agregar/eliminar cuentas) — como pidió el
+  usuario. Indicador "hay más" (chevron con bounce) cuando el rail desborda +
+  scroll con la rueda (mask fade ya existía).
+- **RENOMBRAR CUENTAS** (pedido: "deberías poder ponerle los nombres"): nueva
+  sección "Cuentas" en el drawer (inputs + botón guardar por fila, refresco
+  cada 5s) y endpoint `POST /api/accounts/{id}/rename {label}` (≤40 chars) —
+  verificado (Mi Personal ↔ Cuenta 1). Tray y rail muestran el label nuevo.
+- **WELCOME con paleta correcta** (el usuario odiaba la pantalla azul-verde
+  vieja del arranque): reestilizado al gradiente teal actual con logo verde/
+  rayito negro + soporte de tema claro. El splash de arranque quedó en 150ms.
+- PowerShell+curl JSON: usar `--data-binary @file` o `{\"..\"}` escapado (las
+  comillas simples con `{...}` se las come el parser nativo).
+
 ## Round 2 (feedback del usuario tras probar: renombrado + premium + delete)
 
 - **Nombre**: ZapDude en TODAS partes (ventana "ZapDude", "Configuración — ZapDude",

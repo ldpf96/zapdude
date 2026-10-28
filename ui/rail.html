@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <title>Zapdude</title>
@@ -16,6 +16,18 @@
       --muted: #6b8279;
       --warn: #f5b83d;
       --danger: #ff5f56;
+      --dot-border: #08130f;
+    }
+    :root[data-theme="light"] {
+      --bg-top: #f3f8f5;
+      --bg-bottom: #e7efeb;
+      --stroke: rgba(0, 0, 0, 0.09);
+      --tile: rgba(0, 0, 0, 0.05);
+      --tile-hover: rgba(0, 0, 0, 0.09);
+      --accent-soft: rgba(18, 140, 108, 0.12);
+      --text: #0c2118;
+      --muted: #5d7568;
+      --dot-border: #e7efeb;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
     html, body { height: 100%; }
@@ -23,13 +35,13 @@
       font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
       background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
       display: flex; flex-direction: column; align-items: center;
-      padding: 16px 0 16px;
+      padding: 16px 0;
       overflow: hidden;
       border-right: 1px solid var(--stroke);
     }
     svg.icon { width: 100%; height: 100%; display: block; }
 
-    /* ---- Brand / logo (opens the options drawer) ---- */
+    /* ---- Brand / logo (opens the full-screen options) ---- */
     .logo {
       width: 44px; height: 44px; border-radius: 14px;
       background: linear-gradient(140deg, #34e877 0%, #0f9e6c 100%);
@@ -43,27 +55,31 @@
     .logo:hover { transform: translateY(-1px) scale(1.04); box-shadow: 0 4px 18px rgba(46,224,111,0.5), inset 0 1px 0 rgba(255,255,255,0.35); }
     .logo:active { transform: scale(0.97); }
     .logo svg { width: 22px; height: 22px; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.25)); }
+    .logo svg path { fill: #06231a; }
     .logo.open { box-shadow: 0 0 0 2px rgba(46,224,111,0.55), 0 4px 18px rgba(46,224,111,0.5), inset 0 1px 0 rgba(255,255,255,0.35); }
 
-    /* ---- Delicate curved dividers (purely aesthetic) ---- */
+    /* ---- Delicate curved divider under the logo ---- */
     .divider {
-      width: 44px; height: 3px; flex-shrink: 0; border: none; border-radius: 0 0 50% 50% / 0 0 100% 100%;
+      width: 44px; height: 3px; flex-shrink: 0; border: none;
+      border-radius: 0 0 50% 50% / 0 0 100% 100%;
       background: linear-gradient(90deg, rgba(46,224,111,0) 0%, rgba(46,224,111,0.38) 50%, rgba(46,224,111,0) 100%);
+      margin-top: 12px;
     }
-    .divider.below { margin-top: 10px; border-radius: 0 0 50% 50% / 0 0 100% 100%; }
-    .divider.above { margin-bottom: 12px; border-radius: 50% 50% 0 0 / 100% 100% 0 0; }
 
+    /* ---- Accounts scroll area: EVERY tile spaced uniformly (10px) ---- */
     .rail-scroll {
       flex: 1; overflow-y: auto; width: 100%;
-      display: flex; flex-direction: column; align-items: center; gap: 10px;
-      padding: 18px 0 10px; scrollbar-width: none;
-      mask-image: linear-gradient(180deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
-      -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+      display: flex; flex-direction: column; align-items: center;
+      gap: 12px;                       /* the ONLY gap: logo/acc/acc/…/+ */
+      padding: 12px 0 14px;
+      scrollbar-width: none;
+      mask-image: linear-gradient(180deg, transparent 0, #000 14px, #000 calc(100% - 16px), transparent 100%);
+      -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 14px, #000 calc(100% - 16px), transparent 100%);
     }
     .rail-scroll::-webkit-scrollbar { display: none; }
 
-    /* ---- Account tiles ---- */
-    .avatar {
+    /* ---- Account tiles + the in-flow "+" ---- */
+    .avatar, .add-btn {
       width: 44px; height: 44px; border-radius: 14px;
       background: var(--tile);
       color: var(--text);
@@ -72,9 +88,10 @@
       border: 1px solid transparent;
       transition: transform 0.14s ease, background 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
       flex-shrink: 0;
+      font-family: inherit;
     }
-    .avatar svg { width: 20px; height: 20px; opacity: 0.85; }
-    .avatar:hover { background: var(--tile-hover); transform: translateY(-1px); border-color: var(--stroke); }
+    .avatar svg, .add-btn svg { width: 20px; height: 20px; opacity: 0.85; }
+    .avatar:hover, .add-btn:hover { background: var(--tile-hover); transform: translateY(-1px); border-color: var(--stroke); }
     .avatar.active {
       background: var(--accent-soft);
       border-color: rgba(46, 224, 111, 0.55);
@@ -92,41 +109,50 @@
     .avatar .dot {
       position: absolute; right: -2px; bottom: -2px;
       width: 12px; height: 12px; border-radius: 50%;
-      border: 2px solid var(--bg-bottom);
+      border: 2px solid var(--dot-border);
       background: #5f7a70;
     }
     .dot.logged { background: var(--accent); }
     .dot.qr { background: var(--warn); }
     .dot.detecting { background: #5f7a70; }
 
+    .add-btn {
+      background: var(--tile);
+      border: 1.5px dashed rgba(46, 224, 111, 0.4);
+      color: var(--accent);
+    }
+    .add-btn svg { width: 18px; height: 18px; }
+    .add-btn:hover { background: var(--accent-soft); border-color: rgba(46,224,111,0.7); transform: translateY(-1px); }
+    .add-btn:disabled { opacity: 0.45; cursor: wait; transform: none; }
+
     .tooltip {
       position: absolute; left: 58px; top: 50%; transform: translateY(-50%) translateX(-4px);
-      background: rgba(16, 28, 24, 0.96); color: var(--text);
+      background: rgba(16, 28, 24, 0.96); color: #eef4f1;
       font-size: 12px; font-weight: 500; letter-spacing: 0.1px;
       padding: 7px 11px; border-radius: 9px; white-space: nowrap;
       opacity: 0; pointer-events: none; transition: opacity 0.14s ease, transform 0.14s ease;
       box-shadow: 0 8px 24px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06);
       z-index: 20;
     }
+    :root[data-theme="light"] .tooltip { background: rgba(255,255,255,0.98); color: #0c2118; box-shadow: 0 8px 24px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.08); }
     .avatar:hover .tooltip, .logo:hover .tooltip, .add-btn:hover .tooltip {
       opacity: 1; transform: translateY(-50%) translateX(0);
     }
     .avatar.armed .tooltip { background: rgba(60, 18, 16, 0.97); color: #ffb4ae; opacity: 1; transform: translateY(-50%) translateX(0); }
 
-    /* ---- Add account ---- */
-    .add-btn {
-      width: 44px; height: 44px; border-radius: 14px;
-      background: var(--tile);
-      border: 1.5px dashed rgba(46, 224, 111, 0.4);
-      color: var(--accent);
-      cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      transition: background 0.14s ease, transform 0.14s ease, border-color 0.14s ease;
-      flex-shrink: 0; position: relative;
+    /* ---- "More accounts below" indicator ---- */
+    .more-indicator {
+      position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+      width: 26px; height: 18px; border-radius: 9px;
+      background: var(--tile-hover); color: var(--muted);
+      display: none; align-items: center; justify-content: center;
+      pointer-events: none; z-index: 15;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+      animation: more-bounce 1.6s ease-in-out infinite;
     }
-    .add-btn svg { width: 18px; height: 18px; }
-    .add-btn:hover { background: var(--accent-soft); border-color: rgba(46,224,111,0.7); transform: translateY(-1px); }
-    .add-btn:disabled { opacity: 0.45; cursor: wait; transform: none; }
+    .more-indicator.show { display: flex; }
+    .more-indicator svg { width: 12px; height: 12px; }
+    @keyframes more-bounce { 50% { transform: translateX(-50%) translateY(2px); } }
 
     .offline {
       position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
@@ -149,6 +175,9 @@
       <symbol id="i-x" viewBox="0 0 24 24">
         <path fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>
       </symbol>
+      <symbol id="i-chevdown" viewBox="0 0 24 24">
+        <path fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/>
+      </symbol>
     </defs>
   </svg>
 
@@ -159,16 +188,19 @@
     <span class="tooltip">Opciones Zapdude</span>
   </div>
 
-  <div class="divider below" aria-hidden="true"></div>
+  <div class="divider" aria-hidden="true"></div>
 
-  <div class="rail-scroll" id="rail"></div>
+  <div class="rail-scroll" id="scroll">
+    <div id="rail" style="display:contents"></div>
+    <button class="add-btn" id="addBtn">
+      <svg class="icon"><use href="#i-plus"/></svg>
+      <span class="tooltip">Agregar cuenta</span>
+    </button>
+  </div>
 
-  <div class="divider above" aria-hidden="true"></div>
-
-  <button class="add-btn" id="addBtn">
-    <svg class="icon"><use href="#i-plus"/></svg>
-    <span class="tooltip">Agregar cuenta</span>
-  </button>
+  <div class="more-indicator" id="more">
+    <svg><use href="#i-chevdown"/></svg>
+  </div>
 
   <script>
     "use strict";
@@ -177,18 +209,14 @@
     let activeId = null;
     let wasOffline = false;
 
+    const scroll = document.getElementById("scroll");
+    const addBtn = document.getElementById("addBtn");
+    const rail = document.getElementById("rail");
+
     async function api(path, options) {
       const res = await fetch(path, options);
       if (!res.ok) throw new Error("HTTP " + res.status);
       return res.json();
-    }
-
-    function esc(s) {
-      return String(s).replace(/[&<>\"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-    }
-
-    function disarm() {
-      if (armedId) { armedId = null; renderRail(); }
     }
 
     // Self-heal: if the API goes away (port change / restart), show a badge
@@ -212,11 +240,23 @@
       catch (e) { return; } // healthWatch handles reconnection UI
       accounts = data.accounts || [];
       renderRail();
+      updateMoreIndicator();
+    }
+
+    // Theme follows the saved preference (checked on every poll — cheap).
+    async function loadTheme() {
+      try {
+        const prefs = await api("/api/prefs");
+        document.documentElement.dataset.theme = prefs.theme === "light" ? "light" : "dark";
+      } catch (_) { /* keep current */ }
+    }
+
+    function disarm() {
+      if (armedId) { armedId = null; renderRail(); }
     }
 
     // Incremental DOM update (no innerHTML rebuild = no flicker on polls).
     function renderRail() {
-      const rail = document.getElementById("rail");
       const byId = new Map();
       for (const a of accounts) {
         if (a.active) activeId = a.id;
@@ -264,19 +304,30 @@
       });
     }
 
-    // Logo click: toggle the options drawer (API / AI agent / About).
+    // Little "more below" cue when the rail overflows.
+    function updateMoreIndicator() {
+      const more = document.getElementById("more");
+      const remaining = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight;
+      more.classList.toggle("show", remaining > 24);
+    }
+    scroll.addEventListener("scroll", updateMoreIndicator, { passive: true });
+    window.addEventListener("resize", updateMoreIndicator);
+
+    // Logo click: toggle the full-screen options (API / AI agent / About).
     document.getElementById("logo").onclick = async (ev) => {
       disarm();
       try { await api("/api/ui/drawer", { method: "POST" }); } catch (e) { console.error(e); }
     };
 
-    document.getElementById("addBtn").onclick = async (ev) => {
+    addBtn.onclick = async (ev) => {
       disarm();
       const btn = ev.currentTarget;
       btn.disabled = true;
       try {
         await api("/api/accounts", { method: "POST" });
         await loadRail();
+        // Keep the fresh (+) button just below the newest account.
+        scroll.scrollTop = scroll.scrollHeight;
       } catch (e) { console.error(e); }
       btn.disabled = false;
     };
@@ -288,7 +339,9 @@
 
     (async () => {
       await loadRail();
+      await loadTheme();
       setInterval(loadRail, 2500);
+      setInterval(loadTheme, 10000);
       healthWatch();
     })();
   </script>

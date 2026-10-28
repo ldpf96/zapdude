@@ -264,11 +264,13 @@ fn router(state: ApiState) -> Router {
         .route("/api/ui/drawer", post(ui_toggle_drawer))
         // --- Management endpoints (no auth, used by the shell UI + local tools) ---
         .route("/api/healthz", get(healthz))
+        .route("/api/prefs", get(get_prefs).post(post_prefs))
         .route("/api/config", get(get_config).post(post_config))
         .route("/api/accounts", get(list_accounts).post(add_account_http))
         .route("/api/accounts/{id}", delete(remove_account_http))
         .route("/api/accounts/{id}/open", post(open_account_http))
         .route("/api/accounts/{id}/hide", post(hide_account_http))
+        .route("/api/accounts/{id}/rename", post(rename_account_http))
         // --- Automation endpoints (require X-API-Key + enabled) ---
         .route("/api/status", get(status))
         .route("/api/message", post(message))
@@ -406,6 +408,84 @@ async fn healthz() -> impl IntoResponse {
         "server_running": server_running(),
         "version": env!("CARGO_PKG_VERSION"),
     }))
+}
+
+// --- App preferences (theme, autostart, minimized start) -------------------
+
+async fn get_prefs() -> (StatusCode, Json<Value>) {
+    let Some(state_settings) = settings() else {
+        return json_error(&ApiError::internal("app state not initialized"));
+    };
+    let prefs = state_settings.current_prefs();
+    json_ok(json!({
+        "theme": prefs.theme,
+        "autostart": prefs.autostart,
+        "start_minimized": prefs.start_minimized,
+    }))
+}
+
+#[derive(Deserialize)]
+struct PrefsBody {
+    theme: String,
+    autostart: bool,
+    start_minimized: bool,
+}
+
+async fn post_prefs(State(state): State<ApiState>, Json(body): Json<PrefsBody>) -> (StatusCode, Json<Value>) {
+    let prefs = config::AppPrefs {
+        theme: body.theme,
+        autostart: body.autostart,
+        start_minimized: body.start_minimized,
+    }
+    .sanitized();
+    if let Err(err) = state.settings.update_prefs(prefs.clone()) {
+        return json_error(&ApiError::internal(err));
+    }
+    // Windows autostart registration (Run key). Errors degrade: the pref
+    // persists, the registry just may not have changed.
+    let autostart_result = crate::window::apply_autostart(prefs.autostart);
+    if let Err(err) = autostart_result {
+        eprintln!("zapdude: autostart registry update failed: {err}");
+    }
+    json_ok(json!({
+        "theme": prefs.theme,
+        "autostart": prefs.autostart,
+        "start_minimized": prefs.start_minimized,
+    }))
+}
+
+/// Rename an account (label only — ids are stable identities).
+async fn rename_account_http(
+    State(state): State<ApiState>,
+    Path(id): Path<String>,
+    Json(body): Json<Value>,
+) -> (StatusCode, Json<Value>) {
+    let raw = body.get("label").and_then(Value::as_str).unwrap_or("");
+    let label: String = raw.trim().chars().take(40).collect();
+    if label.is_empty() {
+        return json_error(&ApiError::bad_request("label is required"));
+    }
+    let accounts: Vec<AccountConfig> = state
+        .settings
+        .current_accounts()
+        .into_iter()
+        .map(|mut account| {
+            if account.id == id {
+                account.label = label.clone();
+            }
+            account
+        })
+        .collect();
+    if !accounts.iter().any(|account| account.id == id) {
+        return json_error(&ApiError::bad_request(format!("account '{id}' not found")));
+    }
+    if let Err(err) = state.settings.update_accounts(accounts) {
+        return json_error(&ApiError::internal(err));
+    }
+    if let Some(app_handle) = crate::APP_HANDLE.get() {
+        crate::window::refresh_tray(app_handle);
+    }
+    json_ok(json!({ "id": id, "label": label }))
 }
 
 async fn get_config() -> (StatusCode, Json<Value>) {
@@ -568,6 +648,7 @@ async fn add_account_http(State(state): State<ApiState>) -> (StatusCode, Json<Va
                     account.id, err
                 );
             }
+            crate::window::refresh_tray(&handle);
         });
     }
     json_ok(json!({ "id": id, "label": label, "created": true }))
@@ -591,6 +672,7 @@ async fn remove_account_http(Path(id): Path<String>) -> (StatusCode, Json<Value>
     }
     if let Some(app_handle) = crate::APP_HANDLE.get() {
         crate::window::close_account_webview(app_handle, &id);
+        crate::window::refresh_tray(app_handle);
     }
     json_ok(json!({ "id": id }))
 }

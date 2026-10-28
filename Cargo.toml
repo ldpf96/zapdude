@@ -2,14 +2,17 @@
 name = "zapdude"
 version = "1.0.0"
 edition = "2021"
-description = "ZapZap (Rust) - WhatsApp Web desktop client with a local automation API for people and AI agents"
+description = "Zapdude - WhatsApp Web multi-account desktop client with a local automation API for people and AI agents"
 license = "AGPL-3.0-or-later"
-authors = ["ZapZap fork contributors"]
+authors = ["Zapdude fork contributors"]
 
 
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"
 
 [dependencies]
 tauri = { version = "2", features = ["tray-icon", "unstable"] }

@@ -112,12 +112,46 @@ fn sanitize_accounts(raw: Vec<AccountConfig>) -> Vec<AccountConfig> {
     result
 }
 
+/// App-shell preferences (theme, autostart, minimized start).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default, rename_all = "camelCase")]
+pub struct AppPrefs {
+    /// Shell UI theme: "dark" (default) or "light".
+    pub theme: String,
+    /// Launch Zapdude when Windows starts (HKCU Run key).
+    pub autostart: bool,
+    /// Start hidden in the tray instead of showing the window.
+    pub start_minimized: bool,
+}
+
+impl Default for AppPrefs {
+    fn default() -> Self {
+        Self {
+            theme: "dark".to_string(),
+            autostart: false,
+            start_minimized: false,
+        }
+    }
+}
+
+impl AppPrefs {
+    pub fn sanitized(mut self) -> Self {
+        self.theme = if self.theme.eq_ignore_ascii_case("light") {
+            "light".to_string()
+        } else {
+            "dark".to_string()
+        };
+        self
+    }
+}
+
 /// Whole configuration file shape.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct ConfigFile {
     pub api: ApiConfig,
     pub accounts: Vec<AccountConfig>,
+    pub prefs: AppPrefs,
 }
 
 impl Default for ConfigFile {
@@ -125,6 +159,7 @@ impl Default for ConfigFile {
         Self {
             api: ApiConfig::default(),
             accounts: vec![AccountConfig::default()],
+            prefs: AppPrefs::default(),
         }
     }
 }
@@ -156,19 +191,33 @@ impl SettingsState {
     /// Rust app is the only owner of the file).
     pub fn load(data_dir: &Path) -> Self {
         let path = data_dir.join("config.json");
-        let file = std::fs::read_to_string(&path)
-            .ok()
-            .map(|text| {
-                // Windows editors often emit UTF-8 with BOM; strip it.
-                let clean = text.trim_start_matches('\u{feff}');
-                serde_json::from_str::<Value>(clean)
-            })
-            .and_then(|parsed| parsed.ok())
-            .and_then(|value| serde_json::from_value::<ConfigFile>(value).ok())
-            .unwrap_or_default();
+        // A concurrent writer (installer race, second instance starting
+        // while the first persists) can hand us a half-written JSON: retry
+        // briefly before falling back to defaults, so one unlucky read
+        // never nukes the user's accounts.
+        let mut file = None;
+        for _ in 0..4 {
+            let text = std::fs::read_to_string(&path).ok();
+            match text {
+                Some(text) => {
+                    // Windows editors often emit UTF-8 with BOM; strip it.
+                    let clean = text.trim_start_matches('\u{feff}');
+                    match serde_json::from_str::<Value>(clean) {
+                        Ok(value) => {
+                            file = serde_json::from_value::<ConfigFile>(value).ok();
+                            break;
+                        }
+                        Err(_) => std::thread::sleep(std::time::Duration::from_millis(60)),
+                    }
+                }
+                None => break, // no file yet: genuine first run
+            }
+        }
+        let file = file.unwrap_or_default();
         let clean = ConfigFile {
             api: file.api.sanitized(),
             accounts: sanitize_accounts(file.accounts),
+            prefs: file.prefs.sanitized(),
         };
         let state = Self {
             data_dir: data_dir.to_path_buf(),
@@ -190,6 +239,19 @@ impl SettingsState {
 
     pub fn current_accounts(&self) -> Vec<AccountConfig> {
         self.read(|file| file.accounts.clone()).unwrap_or_default()
+    }
+
+    pub fn current_prefs(&self) -> AppPrefs {
+        self.read(|file| file.prefs.clone())
+            .unwrap_or_else(|_| AppPrefs::default())
+    }
+
+    /// Replace the app preferences (sanitized) and persist to disk.
+    pub fn update_prefs(&self, prefs: AppPrefs) -> Result<(), String> {
+        self.write(|file| {
+            file.prefs = prefs.sanitized();
+            self.persist_locked(file)
+        })
     }
 
     pub fn account(&self, id: &str) -> Option<AccountConfig> {

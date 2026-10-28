@@ -21,6 +21,7 @@
 //! threads (setup, async commands or spawned threads) so the WebView2
 //! main-thread deadlock does not apply.
 
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Mutex;
 
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
@@ -145,6 +146,59 @@ fn permission_response(kind: PermissionKind) -> PermissionResponse {
     }
 }
 
+/// Sequence for popup window labels (pop-out calls, etc.).
+static POPUP_SEQ: AtomicU32 = AtomicU32::new(0);
+
+/// Open a POP-OUT window (WhatsApp call windows, media popups): a real
+/// native window the user can move anywhere, sharing the ACCOUNT's
+/// WebView2 environment (same session/cookies) — without this, WebView2
+/// denies every window.open and WhatsApp shows "modify your browser to
+/// allow popups".
+#[cfg(windows)]
+fn popup_window(
+    account_id: &str,
+    url: url::Url,
+    features: &tauri::webview::NewWindowFeatures,
+) -> tauri::webview::NewWindowResponse<Wry> {
+    let Some(handle) = crate::APP_HANDLE.get().cloned() else {
+        return tauri::webview::NewWindowResponse::Deny;
+    };
+    let seq = POPUP_SEQ.fetch_add(1, Ordering::Relaxed);
+    let label = format!("popup-{account_id}-{seq}");
+    let (width, height) = features
+        .size()
+        .map(|size| (size.width.max(280.0), size.height.max(240.0)))
+        .unwrap_or((480.0_f64, 640.0_f64));
+    // The opener's environment already carries this account's user-data
+    // folder — sharing it is REQUIRED on Windows (a different environment
+    // with the same data folder fails to create) and is what gives the
+    // popup the account's session.
+    let environment = features.opener().environment.clone();
+    let built = tauri::webview::WebviewWindowBuilder::new(&handle, &label, WebviewUrl::External(url))
+        .title("Zapdude — llamada")
+        .inner_size(width, height)
+        .min_inner_size(280.0_f64, 240.0_f64)
+        .resizable(true)
+        .user_agent(USER_AGENT_DESKTOP)
+        .initialization_script(format!(
+            "if (window === window.top) {{ {} }}",
+            CLIENT_HINTS_FIX_SCRIPT
+        ))
+        .on_permission_request(|_webview, kind| permission_response(kind))
+        .with_environment(environment)
+        .build();
+    match built {
+        Ok(window) => {
+            let _ = window.set_focus();
+            tauri::webview::NewWindowResponse::Create { window }
+        }
+        Err(err) => {
+            eprintln!("zapdude: popup window '{label}' failed: {err}");
+            tauri::webview::NewWindowResponse::Deny
+        }
+    }
+}
+
 /// Builder for one WhatsApp Web account webview (identity + bridge).
 ///
 /// DEBUG BISECTION: ZAPDUKE_WEBVIEW_OPTS (comma list) selects which options
@@ -188,6 +242,16 @@ fn account_webview_builder(account: &crate::config::AccountConfig) -> WebviewBui
     }
     if has("data") && has("ua") {
         builder = builder.focused(false);
+    }
+    #[cfg(windows)]
+    if has("ua") {
+        // Pop-out windows (calls): without this handler WebView2 DENIES
+        // every window.open (wry's default is SetHandled(true)) and
+        // WhatsApp tells the user to "modify the browser to allow popups".
+        let account_id = account.id.clone();
+        builder = builder.on_new_window(move |url, features| {
+            popup_window(&account_id, url, &features)
+        });
     }
     #[cfg(windows)]
     if has("args") {
@@ -266,9 +330,15 @@ fn relayout(window: &Window<Wry>) {
     }
 }
 
-/// Create the shell window: rail webview + welcome backdrop, then show it.
+/// Create the shell window: rail webview + welcome backdrop, then show it
+/// (unless the user chose "start minimized" — then only the tray exists
+/// until the user opens the window from the tray).
 /// The first account is opened right after by `auto_open_first_account`.
 pub fn create_shell(app: &AppHandle) -> tauri::Result<()> {
+    let start_minimized = crate::SHARED
+        .get()
+        .map(|shared| shared.settings.current_prefs().start_minimized)
+        .unwrap_or(false);
     let window = tauri::window::Window::builder(app, "main")
         .title("Zapdude")
         .inner_size(1180.0_f64, 780.0_f64)
@@ -291,8 +361,8 @@ pub fn create_shell(app: &AppHandle) -> tauri::Result<()> {
         LogicalSize::new(RAIL_WIDTH, content.height),
     )?;
 
-    // 2. Welcome / branded backdrop (replaced by an account webview as soon
-    //    as one is opened; only visible if the app truly has no accounts).
+    // 2. Welcome / branded splash (replaced by an account webview as soon
+    //    as one is opened; a proper destination when no accounts remain).
     window.add_child(
         WebviewBuilder::new("welcome", WebviewUrl::External(welcome_url)),
         LogicalPosition::new(RAIL_WIDTH, 0.0_f64),
@@ -303,16 +373,39 @@ pub fn create_shell(app: &AppHandle) -> tauri::Result<()> {
         *active = Some("welcome".to_string());
     }
 
-    // Re-flow webviews when the window is resized.
+    // Re-flow webviews when the window is resized, scaled or focused.
     let watcher = window.clone();
     window.on_window_event(move |event| {
-        if matches!(event, tauri::WindowEvent::Resized(_)) {
+        if matches!(
+            event,
+            tauri::WindowEvent::Resized(_)
+                | tauri::WindowEvent::ScaleFactorChanged { .. }
+                | tauri::WindowEvent::Focused(_)
+        ) {
             relayout(&watcher);
         }
     });
 
-    let _ = window.show();
-    let _ = window.set_focus();
+    // GEOMETRY WATCHDOG: the four corners of the active webview must ALWAYS
+    // hug the window's client area (the user hit a state where the chat
+    // drifted off after some resize/dpi dance). relayout is idempotent and
+    // cheap; running it every couple of seconds makes drift impossible to
+    // survive, whatever event we missed.
+    let guard = window.clone();
+    std::thread::Builder::new()
+        .name("zapdude-geometry".into())
+        .spawn(move || loop {
+            std::thread::sleep(std::time::Duration::from_secs(2));
+            if !guard.is_minimized().unwrap_or(false) {
+                relayout(&guard);
+            }
+        })
+        .ok();
+
+    if !start_minimized {
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
     Ok(())
 }
 
@@ -325,8 +418,9 @@ pub fn auto_open_first_account(app: &AppHandle) {
     };
     let handle = app.clone();
     std::thread::spawn(move || {
-        // Give the shell a beat to finish laying out.
-        std::thread::sleep(std::time::Duration::from_millis(400));
+        // A single branded-splash beat (the styled welcome) before the
+        // account takes over — no long blank interstitial.
+        std::thread::sleep(std::time::Duration::from_millis(150));
         let mut accounts = shared.settings.current_accounts();
         if accounts.is_empty() {
             let account = crate::config::AccountConfig {
@@ -516,38 +610,62 @@ pub fn reload_shell_ui(app: &AppHandle) {
     }
 }
 
+/// Build the tray menu for the CURRENT account list (rebuilt on changes so
+/// "Mostrar <cuenta>" never goes stale).
+fn build_tray_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
+    let shared = crate::SHARED.get().expect("shared globals");
+    let accounts = shared.settings.current_accounts();
+    let mut item_pool: Vec<MenuItem<tauri::Wry>> = Vec::new();
+    for account in &accounts {
+        let item = MenuItem::with_id(
+            app,
+            format!("show-{}", account.id),
+            format!("Mostrar {}", account.label),
+            true,
+            None::<&str>,
+        )?;
+        item_pool.push(item);
+    }
+    let separator = PredefinedMenuItem::separator(app)?;
+    let hide_all = MenuItem::with_id(app, "hide-all", "Ocultar ventanas", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Salir de Zapdude", true, None::<&str>)?;
+    let menu_items: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> = item_pool
+        .iter()
+        .map(|item| item as &dyn tauri::menu::IsMenuItem<tauri::Wry>)
+        .chain(std::iter::once(&separator as &dyn tauri::menu::IsMenuItem<tauri::Wry>))
+        .chain(std::iter::once(&hide_all as &dyn tauri::menu::IsMenuItem<tauri::Wry>))
+        .chain(std::iter::once(&quit as &dyn tauri::menu::IsMenuItem<tauri::Wry>))
+        .collect();
+    Menu::with_items(app, &menu_items)
+}
+
+/// Show + focus the main window (tray "Mostrar <cuenta>" must bring the
+/// window BACK even if the user closed it to the tray — showing the webview
+/// alone does nothing while the window is hidden).
+pub fn show_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+}
+
 /// Tray: quick account switching, hide-all and exit (closes the whole app).
 pub fn initialize_tray(app: &App) {
     let build = move || -> tauri::Result<()> {
-        let shared = crate::SHARED.get().expect("shared globals");
-        let accounts = shared.settings.current_accounts();
-        let mut item_pool: Vec<MenuItem<tauri::Wry>> = Vec::new();
-        for account in &accounts {
-            let item = MenuItem::with_id(
-                app,
-                format!("show-{}", account.id),
-                format!("Mostrar {}", account.label),
-                true,
-                None::<&str>,
-            )?;
-            item_pool.push(item);
-        }
-        let separator = PredefinedMenuItem::separator(app)?;
-        let hide_all = MenuItem::with_id(app, "hide-all", "Ocultar ventanas", true, None::<&str>)?;
-        let quit = MenuItem::with_id(app, "quit", "Salir de Zapdude", true, None::<&str>)?;
-        let menu_items: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> = item_pool
-            .iter()
-            .map(|item| item as &dyn tauri::menu::IsMenuItem<tauri::Wry>)
-            .chain(std::iter::once(&separator as &dyn tauri::menu::IsMenuItem<tauri::Wry>))
-            .chain(std::iter::once(&hide_all as &dyn tauri::menu::IsMenuItem<tauri::Wry>))
-            .chain(std::iter::once(&quit as &dyn tauri::menu::IsMenuItem<tauri::Wry>))
-            .collect();
-        let menu = Menu::with_items(app, &menu_items)?;
+        let menu = build_tray_menu(app.handle())?;
         let icon = app.default_window_icon().cloned();
         let mut tray_builder = TrayIconBuilder::with_id("zapdude-tray")
             .menu(&menu)
+            .show_menu_on_left_click(false)
             .on_menu_event(|app_handle, event| {
                 crate::window::handle_tray_menu_event(app_handle, event.id().as_ref());
+            })
+            .on_tray_icon_event(|tray, event| {
+                // Left click on the tray icon itself: bring the window back.
+                if let tauri::tray::TrayIconEvent::Click { button: tauri::tray::MouseButton::Left, button_state: tauri::tray::MouseButtonState::Up, .. } = event {
+                    show_main_window(tray.app_handle());
+                }
             });
         if let Some(icon) = icon {
             tray_builder = tray_builder.icon(icon);
@@ -560,6 +678,22 @@ pub fn initialize_tray(app: &App) {
     }
 }
 
+/// Rebuild the tray menu after the account registry changed (add/remove)
+/// so the entries always match reality.
+pub fn refresh_tray(app: &AppHandle) {
+    let handle = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        if let Some(tray) = handle.tray_by_id("zapdude-tray") {
+            match build_tray_menu(&handle) {
+                Ok(menu) => {
+                    let _ = tray.set_menu(Some(menu));
+                }
+                Err(err) => eprintln!("zapdude: tray menu refresh failed: {err}"),
+            }
+        }
+    });
+}
+
 /// Route tray menu clicks: switch to an account webview, hide everything,
 /// or exit the app.
 pub fn handle_tray_menu_event(app: &AppHandle, event_id: &str) {
@@ -570,6 +704,9 @@ pub fn handle_tray_menu_event(app: &AppHandle, event_id: &str) {
         .into_iter()
         .find(|account| event_id == format!("show-{}", account.id))
     {
+        // The window must come back FIRST (it may be hidden in the tray):
+        // showing a webview inside a hidden window does nothing visible.
+        show_main_window(app);
         // Webview creation must never happen on the event thread.
         let handle = app.clone();
         std::thread::spawn(move || {
@@ -581,7 +718,10 @@ pub fn handle_tray_menu_event(app: &AppHandle, event_id: &str) {
     }
     match event_id {
         "hide-all" => {
-            let _ = show_content(app, "welcome");
+            // Hide every window (main + popouts): the tray keeps the app alive.
+            for (_, window) in app.windows() {
+                let _ = window.hide();
+            }
         }
         "quit" => {
             crate::api::server::shutdown_loopback_server();
@@ -589,4 +729,36 @@ pub fn handle_tray_menu_event(app: &AppHandle, event_id: &str) {
         }
         _ => {}
     }
+}
+
+/// Windows: register/unregister Zapdude in the HKCU Run key so it launches
+/// when the user logs in (no admin needed).
+#[cfg(windows)]
+pub fn apply_autostart(enable: bool) -> Result<(), String> {
+    use winreg::enums::{HKEY_CURRENT_USER, KEY_QUERY_VALUE, KEY_SET_VALUE};
+    use winreg::RegKey;
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let run = hkcu
+        .open_subkey_with_flags(
+            r"Software\Microsoft\Windows\CurrentVersion\Run",
+            KEY_SET_VALUE | KEY_QUERY_VALUE,
+        )
+        .map_err(|err| err.to_string())?;
+    if enable {
+        let exe = std::env::current_exe().map_err(|err| err.to_string())?;
+        run.set_value("Zapdude", &exe.to_string_lossy().to_string())
+            .map_err(|err| err.to_string())
+    } else {
+        match run.delete_value("Zapdude") {
+            Ok(()) => Ok(()),
+            // Not registered: removing again is a no-op, not an error.
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(err) => Err(err.to_string()),
+        }
+    }
+}
+
+#[cfg(not(windows))]
+pub fn apply_autostart(_enable: bool) -> Result<(), String> {
+    Ok(())
 }
