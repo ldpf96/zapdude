@@ -330,6 +330,24 @@ Fix: reescritura "smallest matching node only" + colapso controlado de ancestros
 
 ## Round 8 (feedback 6: identidad propia + AGPL-3.0 + icono de taskbar en caché)
 
+- **PUBLICADO EN GITHUB (Round 8b)**: gh 2.103.3 instalado por winget; login
+  device-flow del usuario (code 3A27-89C8) → auth ok como **ldpf96** (id
+  19356038, scopes repo/read:org/gist). Identidad git local establecida y
+  TODA la historia reescrita con filter-branch env-filter a
+  `ldpf96 <19356038+ldpf96@users.noreply.github.com>`; refs/original y
+  reflogs purgados (pack 686 KiB total). Repo creado:
+  **https://github.com/ldpf96/zapdude** (público, default branch `main`,
+  GitHub lo detecta como **GNU AGPLv3**). Tag `v1.0.0` (nuevo, sobre el
+  head reescrito; el tag viejo local estaba en el pre-reescritura y se
+  borrió). Release:
+  **https://github.com/ldpf96/zapdude/releases/tag/v1.0.0** con el asset
+  `Zapdude_1.0.0_x64-setup.exe` (2.81 MiB) y las notas en
+  `docs/release-notes-1.0.0.md`. Topics añadidos: whatsapp, tauri, rust,
+  windows, whatsapp-web, multi-account, desktop-client.
+- Pre-push checks: scan de secretos sobre archivos rastreados CLEAN;
+  target/ NUNCA fue commitido (.gitignore ya lo cubría); historial real
+  94 archivos (~1.2 MiB loose).
+
 - **IDENTIDAD/ATRIBUCIÓN (decisión del usuario)**: Zapdude es ahora presentado
   como PROYECTO ORIGINAL de **ldpf96** con **AGPL-3.0-or-later** (LICENSE ya
   era el texto AGPL-3.0 ✓). Todo texto "reescritura/fork/obra derivada/crédito
@@ -439,7 +457,10 @@ Fix: reescritura "smallest matching node only" + colapso controlado de ancestros
 - Workflow CI (GitHub Actions) para compilar Windows/macOS/Linux gratis en
   releases públicos (el usuario lo aprobó como plan para Mac). Regenerar
   icon.icns para mac en el CI.
-- Publicar en GitHub: repo sin crear aún.
+- Publicar en GitHub: ✓ HECHO (Round 8b): https://github.com/ldpf96/zapdude
+  + release v1.0.0 con el instalador. PENDIENTE: workflow CI (GitHub
+  Actions) para builds Windows/macOS/Linux y regeneración de icon.icns; y
+  actualizar el README badge del release si cambian versiones futuras.
 
 ## Comandos útiles
 
