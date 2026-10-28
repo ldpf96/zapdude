@@ -4,152 +4,402 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ZapZap</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      background: #0b141a; color: #ece5dd; height: 100vh; overflow: hidden;
+
+    :root {
+      --bg: #0a0a0a;
+      --surface: #161616;
+      --card: #1c1c1e;
+      --card-hover: #252528;
+      --border: #2c2c2e;
+      --border-light: #3a3a3c;
+      --text: #f5f5f7;
+      --text-secondary: #a1a1a6;
+      --text-tertiary: #86868b;
+      --accent: #30d158;
+      --accent-soft: rgba(48, 209, 88, 0.15);
+      --accent-glow: rgba(48, 209, 88, 0.3);
+      --warning: #ff9f0a;
+      --error: #ff453a;
+      --info: #0a84ff;
+      --sidebar-bg: #111111;
+      --sidebar-active: #1d1d1f;
     }
-    .app { display: flex; height: 100vh; }
+
+    html, body {
+      height: 100%;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ========== APP SHELL ========== */
+    .app {
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ========== SIDEBAR ========== */
     .sidebar {
-      width: 260px; background: #075e54; padding: 16px; display: flex; flex-direction: column; gap: 8px; flex-shrink: 0;
+      width: 240px;
+      background: var(--sidebar-bg);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
     }
-    .sidebar h1 { font-size: 20px; margin-bottom: 16px; color: #fff; letter-spacing: 0.5px; }
-    .nav-btn {
-      background: transparent; border: 1px solid rgba(255,255,255,0.25); color: #fff;
-      padding: 10px 14px; border-radius: 8px; cursor: pointer; text-align: left; font-size: 14px; width: 100%;
+
+    .brand {
+      padding: 24px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
-    .nav-btn.active { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.4); }
-    .nav-btn:hover { background: rgba(255,255,255,0.08); }
-    .content { flex: 1; background: #0b141a; overflow-y: auto; padding: 24px; }
+
+    .brand-icon {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, #30d158, #248a3d);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      box-shadow: 0 4px 12px rgba(48, 209, 88, 0.25);
+    }
+
+    .brand-text {
+      font-size: 18px; font-weight: 700; letter-spacing: -0.5px;
+    }
+
+    .nav {
+      padding: 12px 0;
+      display: flex; flex-direction: column; gap: 2px;
+    }
+
+    .nav-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 20px;
+      background: transparent;
+      border: none;
+      border-left: 3px solid transparent;
+      color: var(--text-secondary);
+      cursor: pointer; font-size: 14px; font-weight: 500;
+      transition: all 0.15s ease;
+      width: 100%; text-align: left;
+      font-family: inherit;
+    }
+
+    .nav-item:hover { background: var(--sidebar-active); color: var(--text); }
+    .nav-item.active {
+      background: var(--sidebar-active);
+      border-left-color: var(--accent);
+      color: var(--text);
+    }
+
+    .nav-item .icon { width: 20px; text-align: center; font-size: 16px; }
+
+    .sidebar-footer {
+      margin-top: auto;
+      padding: 16px 20px;
+      font-size: 11px; color: var(--text-tertiary);
+      border-top: 1px solid var(--border);
+      line-height: 1.4;
+    }
+
+    /* ========== CONTENT ========== */
+    .content {
+      flex: 1;
+      background: var(--bg);
+      overflow-y: auto;
+      padding: 32px 40px;
+    }
+
+    .header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 32px;
+    }
+
+    .header h2 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+    .header-subtitle { color: var(--text-secondary); font-size: 14px; margin-top: 4px; }
+
     .section { display: none; }
-    .section.active { display: block; }
-    .card { background: #1e2e38; border: 1px solid #2a3b45; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
-    .card h2 { font-size: 17px; margin-bottom: 14px; color: #fff; display: flex; align-items: center; gap: 8px; }
-    .accounts-list { display: flex; flex-direction: column; gap: 8px; }
-    .account-item {
-      display: flex; align-items: center; justify-content: space-between; background: #2a3b45;
-      padding: 12px 14px; border-radius: 8px; border: 1px solid #3b4a54;
+    .section.active { display: block; animation: fadeIn 0.25s ease; }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* ========== CARDS ========== */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 20px;
+      transition: border-color 0.2s;
     }
-    .account-info { display: flex; align-items: center; gap: 10px; flex: 1; }
-    .status-dot { width: 8px; height: 8px; border-radius: 50%; }
-    .status-online { background: #05e161; box-shadow: 0 0 8px #05e161; }
-    .status-offline { background: #757575; }
-    .status-scanning { background: #ffa500; box-shadow: 0 0 8px #ffa500; }
-    .status-detecting { background: #bb86fc; box-shadow: 0 0 8px #bb86fc; }
+
+    .card:hover { border-color: var(--border-light); }
+
+    .card h3 {
+      font-size: 17px; font-weight: 600; margin-bottom: 20px;
+      display: flex; align-items: center; gap: 10px;
+    }
+
+    .card h3 .emoji { font-size: 18px; }
+
+    /* ========== ACCOUNTS ========== */
+    .accounts-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .accounts-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .account-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      transition: all 0.2s;
+    }
+
+    .account-card:hover { border-color: var(--border-light); background: var(--card-hover); }
+
+    .account-left { display: flex; align-items: center; gap: 16px; flex: 1; }
+
+    .account-avatar {
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #0a84ff, #5e5ce6);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 600; font-size: 16px; color: #fff;
+    }
+
+    .account-info { flex: 1; min-width: 0; }
+    .account-name { font-weight: 600; font-size: 15px; }
+    .account-id { font-size: 12px; color: var(--text-tertiary); margin-top: 2px; font-family: monospace; }
+
+    .account-status { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500; }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; }
+    .status-online { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+    .status-scanning { background: var(--warning); box-shadow: 0 0 6px var(--warning); }
+    .status-detecting { background: #a855f7; box-shadow: 0 0 6px #a855f7; }
+    .status-offline { background: var(--text-tertiary); }
+
+    .account-actions { display: flex; gap: 8px; }
+
     .btn {
-      background: #075e54; color: #fff; border: none; padding: 8px 16px; border-radius: 6px;
-      cursor: pointer; font-size: 13px; font-weight: 600;
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 16px; border-radius: 8px;
+      border: none; font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: all 0.15s; font-family: inherit;
     }
-    .btn:hover { background: #097a6a; }
-    .btn-secondary { background: #3b4a54; color: #fff; border: 1px solid #4a5a64; }
-    .btn-secondary:hover { background: #4a5a64; }
-    .btn-danger { background: #cc3333; }
-    .btn-danger:hover { background: #e04444; }
-    .btn-row { display: flex; gap: 8px; }
-    .btn-row .btn { flex: 1; }
-    .form-group { margin-bottom: 14px; }
-    .form-group label { display: block; font-size: 12px; color: #a8c3c9; margin-bottom: 6px; font-weight: 600; }
-    .form-group input {
-      width: 100%; padding: 10px; background: #1e2e38; border: 1px solid #3b4a54;
-      border-radius: 6px; color: #fff; font-size: 14px;
+
+    .btn-primary { background: var(--accent); color: #000; }
+    .btn-primary:hover { background: #32d85a; transform: translateY(-1px); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .btn-ghost { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); }
+    .btn-ghost:hover { background: rgba(255,255,255,0.05); color: var(--text); border-color: var(--border-light); }
+
+    .btn-danger { background: transparent; color: var(--error); border: 1px solid var(--error); }
+    .btn-danger:hover { background: rgba(255,69,58,0.1); }
+
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+
+    /* ========== FORM ========== */
+    .form-group { margin-bottom: 16px; }
+    .form-group label {
+      display: block; font-size: 12px; font-weight: 600;
+      color: var(--text-secondary); margin-bottom: 6px; letter-spacing: 0.3px;
     }
-    .form-group input:focus { outline: none; border-color: #05e161; }
-    .toggle { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
-    .toggle input[type="checkbox"] { width: 18px; height: 18px; accent-color: #05e161; }
-    .about { max-width: 640px; }
-    .about p { margin-bottom: 12px; line-height: 1.6; color: #d4d4d4; }
-    .about .credit { font-style: italic; color: #a8c3c9; margin-bottom: 16px; }
-    .about ul { margin-left: 20px; margin-bottom: 16px; color: #d4d4d4; }
-    .about ul li { margin-bottom: 6px; }
-    .footer-note { font-size: 11px; color: #8899a0; margin-top: 16px; }
-    .dialog-backdrop {
-      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55);
-      z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(2px);
+    .form-control {
+      width: 100%; padding: 10px 14px; background: var(--bg);
+      border: 1px solid var(--border); border-radius: 10px;
+      color: var(--text); font-size: 14px; font-family: inherit;
+      transition: border-color 0.2s, box-shadow 0.2s;
     }
-    .dialog { background: #1e2e38; border: 1px solid #3b4a54; border-radius: 12px; padding: 22px; min-width: 340px; width: 90%; max-width: 460px; }
-    .dialog h2 { margin-bottom: 16px; color: #fff; font-size: 18px; }
-    .dialog-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+    .form-control:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+    .toggle-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+    .toggle-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); }
+
+    .api-url {
+      font-family: monospace; font-size: 11px;
+      background: var(--bg); padding: 8px 12px; border-radius: 8px;
+      color: var(--text-tertiary); word-break: break-all;
+      border: 1px solid var(--border);
+    }
+
+    /* ========== TOAST ========== */
+    .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 1000; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
     .toast {
-      position: fixed; bottom: 20px; right: 20px; background: #05e161; color: #000;
-      padding: 10px 16px; border-radius: 6px; font-weight: 600; display: none; z-index: 1001;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      background: var(--card); border: 1px solid var(--border);
+      border-left: 3px solid var(--accent); color: var(--text);
+      padding: 12px 16px; border-radius: 10px; font-size: 13px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4); pointer-events: auto;
+      animation: slideIn 0.3s ease;
     }
-    .toast.error { background: #cc3333; color: #fff; }
-    code { color: #05e161; background: #1e2e38; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+    .toast.error { border-left-color: var(--error); }
+    .toast.success { border-left-color: var(--accent); }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+    /* ========== EMPTY STATE ========== */
+    .empty-state { text-align: center; padding: 60px 20px; color: var(--text-tertiary); }
+    .empty-state .icon { font-size: 48px; margin-bottom: 16px; opacity: 0.4; }
+    .empty-state h3 { font-size: 18px; font-weight: 600; margin-bottom: 8px; color: var(--text); }
+    .empty-state p { font-size: 14px; }
+
+    /* ========== ABOUT ========== */
+    .about-card h3 { margin-bottom: 16px; }
+    .about-card p { color: var(--text-secondary); line-height: 1.6; margin-bottom: 16px; }
+    .about-credit {
+      font-style: italic; color: var(--text-tertiary);
+      border-top: 1px solid var(--border); padding-top: 20px; margin-top: 20px;
+    }
+    .about-credit strong { color: var(--text); }
+    .about-features li { margin-bottom: 8px; color: var(--text-secondary); font-size: 14px; }
+
+    /* ========== DIALOG ========== */
+    .dialog-backdrop {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+      z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(4px);
+    }
+    .dialog {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 28px; min-width: 360px; width: 90%; max-width: 440px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    }
+    .dialog h3 { margin-bottom: 20px; color: var(--text); font-size: 18px; }
+    .dialog-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
+
+    /* ========== RESPONSIVE ========== */
+    @media (max-width: 768px) {
+      .sidebar { width: 220px; }
+      .content { padding: 20px; }
+      .account-card { flex-direction: column; gap: 16px; align-items: flex-start; }
+      .account-actions { width: 100%; justify-content: flex-end; }
+    }
   </style>
 </head>
 <body>
   <div class="app">
-    <div class="sidebar">
-      <h1>⚡ ZapZap</h1>
-      <button class="nav-btn active" onclick="showSection('accounts')" id="nav-accounts">📱 Cuentas</button>
-      <button class="nav-btn" onclick="showSection('config')" id="nav-config">⚙️ Configuración API</button>
-      <button class="nav-btn" onclick="showSection('about')" id="nav-about">ℹ️ Acerca de</button>
-    </div>
-    <div class="content">
-      <!-- Accounts -->
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-icon">⚡</div>
+        <div class="brand-text">ZapZap</div>
+      </div>
+      <nav class="nav">
+        <button class="nav-item active" onclick="showSection('accounts')" id="nav-accounts">
+          <span class="icon">📱</span> Cuentas
+        </button>
+        <button class="nav-item" onclick="showSection('config')" id="nav-config">
+          <span class="icon">⚙️</span> Configuración API
+        </button>
+        <button class="nav-item" onclick="showSection('about')" id="nav-about">
+          <span class="icon">ℹ️</span> Acerca de
+        </button>
+      </nav>
+      <div class="sidebar-footer">
+        ZapZap v1.0.0<br>
+        <span style="font-size:10px;">AGPL-3.0 · Rafael Tosta</span>
+      </div>
+    </aside>
+
+    <!-- Content -->
+    <main class="content">
+      <!-- Cuentas -->
       <section class="section active" id="sec-accounts">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-          <h2>Mis cuentas de WhatsApp</h2>
-          <button class="btn" onclick="openAddDialog()">+ Agregar cuenta</button>
+        <div class="accounts-header">
+          <div>
+            <h2>Mis cuentas de WhatsApp</h2>
+            <div class="header-subtitle">Todas tus cuentas en una sola aplicación. Las notificaciones llegan aunque las ventanas estén ocultas.</div>
+          </div>
+          <button class="btn btn-primary" onclick="openAddDialog()">+ Agregar cuenta</button>
         </div>
-        <p style="font-size:12px;color:#8899a0;margin-bottom:14px;">Cierra la ventana de WhatsApp para ocultarla; la cuenta sigue activa en segundo plano.</p>
+
+        <div id="errorBanner" style="display:none; margin-bottom:20px; padding:12px 16px; background:rgba(255,69,58,0.1); border:1px solid var(--error); border-radius:10px; color:var(--error); font-size:13px;"></div>
+
         <div id="accountsContainer" class="accounts-list"></div>
       </section>
 
-      <!-- API config -->
+      <!-- Configuración API -->
       <section class="section" id="sec-config">
-        <h2>Configuración de API local</h2>
-        <div class="toggle">
-          <input type="checkbox" id="apiEnabled" onchange="saveApiConfig()" />
-          <label for="apiEnabled">Habilitar API (para agentes de IA y automatización)</label>
+        <div class="accounts-header">
+          <div>
+            <h2>Configuración de API</h2>
+            <div class="header-subtitle">API local para humanos y agentes de IA. Endpoints REST, SSE y webhook HMAC.</div>
+          </div>
         </div>
-        <div class="form-group">
-          <label>Puerto</label>
-          <input type="number" id="apiPort" value="29977" min="1024" max="65535" onchange="saveApiConfig()" />
+
+        <div class="card">
+          <h3><span class="emoji">🔌</span>Estado del servidor</h3>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+            <div class="status-dot status-detecting" id="apiStatusDot"></div>
+            <span id="apiStatusText" style="color:var(--text-secondary);">Conectando...</span>
+          </div>
+          <div class="form-group">
+            <label>URL de la API</label>
+            <div class="api-url" id="apiUrlDisplay">http://127.0.0.1:29977/api</div>
+          </div>
         </div>
-        <div class="form-group">
-          <label>API Key</label>
-          <input type="text" id="apiKey" placeholder="Clave de acceso generada automáticamente" onchange="saveApiConfig()" />
+
+        <div class="card">
+          <h3><span class="emoji">🔑</span>Parámetros</h3>
+          <div class="toggle-row">
+            <input type="checkbox" id="apiEnabled" onchange="saveApiConfig()">
+            <label>Habilitar API (agentes de IA y automatización)</label>
+          </div>
+          <div class="form-group">
+            <label>Puerto</label>
+            <input type="number" id="apiPort" value="29977" min="1024" max="65535" onchange="saveApiConfig()">
+          </div>
+          <div class="form-group">
+            <label>API Key</label>
+            <input type="text" id="apiKey" placeholder="Generada automáticamente" onchange="saveApiConfig()" />
+          </div>
+          <div class="form-group">
+            <label>URL del Webhook (opcional)</label>
+            <input type="text" id="webhookUrl" placeholder="https://tu-servidor.com/webhook" onchange="saveApiConfig()" />
+          </div>
+          <div class="form-group">
+            <label>Secret del Webhook (opcional)</label>
+            <input type="text" id="webhookSecret" placeholder="HMAC secret" onchange="saveApiConfig()" />
+          </div>
         </div>
-        <div class="form-group">
-          <label>URL del Webhook (opcional)</label>
-          <input type="text" id="webhookUrl" placeholder="https://tu-servidor.com/webhook" onchange="saveApiConfig()" />
-        </div>
-        <div class="form-group">
-          <label>Secret del Webhook (opcional)</label>
-          <input type="text" id="webhookSecret" placeholder="HMAC secret para firmar eventos" onchange="saveApiConfig()" />
-        </div>
-        <p class="footer-note">La API corre en <span id="apiPortDisplay">http://127.0.0.1:29977</span>/api — usa la cabecera <code>X-API-Key</code> para autenticarte.</p>
       </section>
 
       <!-- About -->
       <section class="section" id="sec-about">
-        <div class="about">
-          <h2>Acerca de ZapZap</h2>
+        <div class="card about-card">
+          <h3><span class="emoji">ℹ️</span>Acerca de ZapZap</h3>
           <p>Cliente de escritorio de WhatsApp Web escrito en <strong>Rust</strong> (Tauri 2 + WebView2).</p>
-          <p class="credit">Inspirado en ZapZap de <strong>Rafael Tosta</strong> (@rafatosta) — trabajo original en Python/GTK, licencia GPL-3.0.</p>
+          <p>Inspirado en <strong>ZapZap</strong> de <strong>Rafael Tosta</strong> (@rafatosta) — trabajo original en Python/GTK, licencia GPL-3.0.</p>
           <p>Esta reescritura se distribuye bajo <strong>AGPL-3.0</strong> como obra derivada (sección 13). Crédito obligatorio al creador original.</p>
-          <p><strong>Características:</strong></p>
-          <ul>
-            <li>Multi-cuenta: varias cuentas de WhatsApp en una sola aplicación</li>
-            <li>Notificaciones de todas las cuentas en un único dispositivo</li>
-            <li>Ventana aislada por cuenta (perfiles WebView2 separados)</li>
-            <li>API local para humanos y agentes de IA (REST + SSE + webhook HMAC)</li>
-            <li>Llamadas de voz/vídeo y compartir pantalla (identidad de Chrome)</li>
-            <li>Bandeja del sistema para cambiar de cuenta rápidamente</li>
+          <ul class="about-features">
+            <li>✅ Multi-cuenta real: perfiles WebView2 aislados por cuenta</li>
+            <li>✅ Notificaciones de todas las cuentas en un dispositivo</li>
+            <li>✅ API local para agentes de IA (REST + SSE + webhook HMAC)</li>
+            <li>✅ Llamadas voz/vídeo y compartir pantalla (identidad Chrome)</li>
+            <li>✅ Bandeja del sistema para cambiar de cuenta rápidamente</li>
+            <li>✅ Instalador Windows (NSIS, sin privilegios de admin)</li>
           </ul>
-          <p class="footer-note">Versión 1.0.0 — https://github.com/rafatosta/zapzap</p>
+          <div class="about-credit">
+            Crédito: Rafael Tosta — https://github.com/rafatosta/zapzap
+          </div>
         </div>
       </section>
-    </div>
+    </main>
   </div>
 
-  <!-- Add account dialog -->
-  <div class="dialog-backdrop" id="addDialog">
+  <!-- Dialog: Agregar cuenta -->
+  <div class="dialog-backdrop" id="addDialog" style="display:none;">
     <div class="dialog">
-      <h2>Agregar cuenta</h2>
+      <h3>Agregar cuenta</h3>
       <div class="form-group">
         <label>ID (ej: personal, trabajo)</label>
         <input type="text" id="newAccountId" placeholder="personal" />
@@ -159,39 +409,60 @@
         <input type="text" id="newAccountLabel" placeholder="Mi cuenta personal" />
       </div>
       <div class="dialog-actions">
-        <button class="btn btn-secondary" onclick="closeAddDialog()">Cancelar</button>
-        <button class="btn" onclick="saveNewAccount()">Agregar cuenta</button>
+        <button class="btn btn-ghost btn-sm" onclick="closeAddDialog()">Cancelar</button>
+        <button class="btn btn-primary btn-sm" onclick="saveNewAccount()">Agregar cuenta</button>
       </div>
     </div>
   </div>
 
-  <div class="toast" id="toast"></div>
+  <div class="toast-container" id="toastContainer"></div>
 
   <script>
-    const API_BASE = "http://127.0.0.1:29977/api";
+    // ========== CONFIG ==========
+    let API_BASE = "http://127.0.0.1:29977/api";
     let apiKey = "";
 
-    async function fetchApi(path, opts = {}) {
-      const headers = { "Content-Type": "application/json", ...opts.headers };
-      if (apiKey) headers["X-API-Key"] = apiKey;
-      const res = await fetch(API_BASE + path, { ...opts, headers });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
-    }
-
-    function showToast(msg, isError) {
-      const t = document.getElementById("toast");
+    // ========== UTILS ==========
+    function showToast(msg, type = "info") {
+      const container = document.getElementById("toastContainer");
+      const t = document.createElement("div");
+      t.className = "toast" + (type === "error" ? " error" : type === "success" ? " success" : "");
       t.textContent = msg;
-      t.className = "toast" + (isError ? " error" : "");
-      t.style.display = "block";
-      setTimeout(() => { t.style.display = "none"; }, 3000);
+      container.appendChild(t);
+      setTimeout(() => { t.style.opacity = "0"; setTimeout(() => t.remove(), 300); }, 3000);
     }
 
     function escapeHtml(t) {
       return String(t).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
     }
 
-    async function loadApiConfig() {
+    function errorBanner(msg) {
+      const b = document.getElementById("errorBanner");
+      b.textContent = msg; b.style.display = "block";
+    }
+
+    // ========== API FETCH ==========
+    async function fetchApi(path, opts = {}) {
+      const headers = { "Content-Type": "application/json", ...opts.headers };
+      if (apiKey) headers["X-API-Key"] = apiKey;
+      const res = await fetch(API_BASE + path, { ...opts, headers });
+      if (res.status === 401) throw new Error("API key inválida o faltante");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    }
+
+    async function detectApi() {
+      const ports = [29977, 29978, 29979, 29980, 29981];
+      for (const port of ports) {
+        try {
+          const h = await fetch("http://127.0.0.1:" + port + "/api/healthz", { signal: AbortSignal.timeout(1500) });
+          if (h.ok) { API_BASE = "http://127.0.0.1:" + port + "/api"; return; }
+        } catch (_) {}
+      }
+    }
+
+    // ========== LOADERS ==========
+    async function loadConfig() {
       try {
         const cfg = await fetchApi("/config");
         apiKey = cfg.api_key || "";
@@ -200,12 +471,71 @@
         document.getElementById("apiKey").value = cfg.api_key;
         document.getElementById("webhookUrl").value = cfg.webhook_url || "";
         document.getElementById("webhookSecret").value = cfg.webhook_secret || "";
-        document.getElementById("apiPortDisplay").textContent = "http://127.0.0.1:" + cfg.port + "/api";
+        document.getElementById("apiUrlDisplay").textContent = "http://127.0.0.1:" + cfg.port + "/api";
+        document.getElementById("apiStatusDot").className = "status-dot status-online";
+        document.getElementById("apiStatusText").textContent = "Servidor API en línea";
       } catch (e) {
-        showToast("No se pudo leer la config de la API", true);
+        document.getElementById("apiStatusDot").className = "status-dot status-offline";
+        document.getElementById("apiStatusText").textContent = "Servidor API no disponible";
       }
     }
 
+    async function loadAccounts() {
+      try {
+        const accs = await fetchApi("/accounts");
+        const container = document.getElementById("accountsContainer");
+        container.innerHTML = "";
+        document.getElementById("errorBanner").style.display = "none";
+
+        if (!accs || accs.length === 0) {
+          container.innerHTML = `
+            <div class="empty-state">
+              <div class="icon">📱</div>
+              <h3>No hay cuentas aún</h3>
+              <p>Agrega tu primera cuenta de WhatsApp para empezar.</p>
+            </div>
+          `;
+          return;
+        }
+
+        for (const a of accs) {
+          const el = document.createElement("div");
+          el.className = "account-card" + (a.window_visible ? " highlight" : "");
+          const statusClass = a.session_state === "logged_in" ? "status-online"
+            : a.session_state === "scan_qr" ? "status-scanning"
+            : a.session_state === "detecting" ? "status-detecting" : "status-offline";
+          const statusLabel = a.session_state === "logged_in" ? "Conectado"
+            : a.session_state === "scan_qr" ? "Espera QR"
+            : a.session_state === "detecting" ? "Cargando..." : "Desconectado";
+          const initials = a.label.charAt(0).toUpperCase();
+          el.innerHTML = `
+            <div class="account-left">
+              <div class="account-avatar">${initials}</div>
+              <div class="account-info">
+                <div class="account-name">${escapeHtml(a.label)}</div>
+                <div class="account-id">${escapeHtml(a.id)}</div>
+              </div>
+              <div class="account-status">
+                <div class="status-dot ${statusClass}"></div>
+                ${statusLabel}
+              </div>
+            </div>
+            <div class="account-actions">
+              <button class="btn btn-ghost btn-sm" ${a.window_visible ? "disabled" : ""} onclick="toggleAccount('${escapeHtml(a.id)}', ${a.window_visible})">
+                ${a.window_visible ? "Ocultar" : "Abrir WhatsApp"}
+              </button>
+              <button class="btn btn-danger btn-sm" onclick="removeAccount('${escapeHtml(a.id)}')">Eliminar</button>
+            </div>
+          `;
+          container.appendChild(el);
+        }
+      } catch (e) {
+        errorBanner("Error cargando cuentas: " + escapeHtml(e.message));
+        document.getElementById("accountsContainer").innerHTML = "";
+      }
+    }
+
+    // ========== ACTIONS ==========
     async function saveApiConfig() {
       const cfg = {
         enabled: document.getElementById("apiEnabled").checked,
@@ -217,61 +547,24 @@
       try {
         await fetchApi("/config", { method: "POST", body: JSON.stringify(cfg) });
         apiKey = cfg.api_key || "";
-        document.getElementById("apiPortDisplay").textContent = "http://127.0.0.1:" + cfg.port + "/api";
-        showToast("Configuración guardada");
+        document.getElementById("apiUrlDisplay").textContent = "http://127.0.0.1:" + cfg.port + "/api";
+        showToast("Configuración guardada", "success");
       } catch (e) {
-        showToast("Error guardando config: " + e.message, true);
+        showToast("Error: " + e.message, "error");
       }
     }
 
-    async function loadAccounts() {
+    async function toggleAccount(id, visible) {
       try {
-        const accs = await fetchApi("/accounts");
-        const container = document.getElementById("accountsContainer");
-        container.innerHTML = "";
-        if (!accs || accs.length === 0) {
-          container.innerHTML = '<div style="color:#8899a0;font-size:13px;">No hay cuentas. Agrega tu primera cuenta.</div>';
-          return;
+        if (visible) {
+          await fetchApi("/accounts/" + encodeURIComponent(id) + "/hide", { method: "POST" });
+        } else {
+          await fetchApi("/accounts/" + encodeURIComponent(id) + "/open", { method: "POST" });
         }
-        for (const a of accs) {
-          const el = document.createElement("div");
-          el.className = "account-item";
-          const statusClass = a.session_state === "logged_in" ? "status-online"
-            : a.session_state === "scan_qr" ? "status-scanning"
-            : a.session_state === "detecting" ? "status-detecting" : "status-offline";
-          const statusLabel = a.session_state === "logged_in" ? "Conectado"
-            : a.session_state === "scan_qr" ? "Espera QR"
-            : a.session_state === "detecting" ? "Cargando..." : "Desconectado";
-          el.innerHTML = `
-            <div class="account-info">
-              <div class="status-dot ${statusClass}"></div>
-              <div>
-                <div style="font-weight:600;">${escapeHtml(a.label)}</div>
-                <div style="font-size:11px;color:#a8c3c9;">${escapeHtml(a.id)} • ${statusLabel}</div>
-              </div>
-            </div>
-            <div class="btn-row">
-              <button class="btn ${a.window_visible ? "btn-secondary" : ""}" onclick="toggleAccount('${escapeHtml(a.id)}', ${a.window_visible})">
-                ${a.window_visible ? "Ocultar" : "Abrir WhatsApp"}
-              </button>
-              <button class="btn btn-danger" onclick="removeAccount('${escapeHtml(a.id)}')" style="padding:6px 10px;font-size:12px;">Eliminar</button>
-            </div>
-          `;
-          container.appendChild(el);
-        }
+        await loadAccounts();
       } catch (e) {
-        document.getElementById("accountsContainer").innerHTML =
-          '<div style="color:#cc3333;">Error cargando cuentas: ' + escapeHtml(e.message) + '</div>';
+        showToast("Error: " + e.message, "error");
       }
-    }
-
-    async function toggleAccount(id, currentlyVisible) {
-      if (currentlyVisible) {
-        await fetchApi("/accounts/" + encodeURIComponent(id) + "/hide", { method: "POST" });
-      } else {
-        await fetchApi("/accounts/" + encodeURIComponent(id) + "/open", { method: "POST" });
-      }
-      await loadAccounts();
     }
 
     async function removeAccount(id) {
@@ -279,22 +572,13 @@
       try {
         await fetchApi("/accounts/" + encodeURIComponent(id), { method: "DELETE" });
         await loadAccounts();
-        showToast("Cuenta eliminada");
+        showToast("Cuenta eliminada", "success");
       } catch (e) {
-        showToast("No se pudo eliminar: " + e.message, true);
+        showToast("Error: " + e.message, "error");
       }
     }
 
-    function showSection(name) {
-      document.querySelectorAll(".section").forEach(s => s.classList.remove("active"));
-      document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
-      document.getElementById("sec-" + name).classList.add("active");
-      document.getElementById("nav-" + name).classList.add("active");
-      if (name === "accounts") loadAccounts();
-      if (name === "config") loadApiConfig();
-    }
-
-    function openAddDialog() {
+    async function openAddDialog() {
       document.getElementById("addDialog").style.display = "flex";
       document.getElementById("newAccountId").value = "";
       document.getElementById("newAccountLabel").value = "";
@@ -307,24 +591,36 @@
     async function saveNewAccount() {
       const id = document.getElementById("newAccountId").value.trim();
       const label = document.getElementById("newAccountLabel").value.trim() || id;
-      if (!id) { showToast("El ID es requerido", true); return; }
+      if (!id) { showToast("El ID es requerido", "error"); return; }
       try {
         await fetchApi("/accounts", { method: "POST", body: JSON.stringify({ id, label }) });
         closeAddDialog();
         await loadAccounts();
-        showToast("Cuenta agregada");
+        showToast("Cuenta agregada", "success");
       } catch (e) {
-        showToast("No se pudo agregar: " + e.message, true);
+        showToast("Error: " + e.message, "error");
       }
     }
 
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") closeAddDialog();
-    });
+    function showSection(name) {
+      document.querySelectorAll(".section").forEach(s => s.classList.remove("active"));
+      document.querySelectorAll(".nav-item").forEach(b => b.classList.remove("active"));
+      document.getElementById("sec-" + name).classList.add("active");
+      document.getElementById("nav-" + name).classList.add("active");
+      if (name === "accounts") loadAccounts();
+      if (name === "config") loadConfig();
+    }
 
-    // Init
-    loadAccounts();
-    loadApiConfig();
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeAddDialog(); });
+
+    // ========== INIT ==========
+    async function init() {
+      await detectApi();
+      loadAccounts();
+      loadConfig();
+      setInterval(loadAccounts, 10000);
+    }
+    init();
   </script>
 </body>
 </html>

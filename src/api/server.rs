@@ -380,32 +380,16 @@ async fn add_account_http(
     if id.is_empty() {
         return json_error(&ApiError::bad_request("account id is required"));
     }
-    let accounts: Vec<AccountConfig> = state
-        .settings
-        .current_accounts()
-        .iter()
-        .filter(|a| a.id != id)
-        .cloned()
-        .collect();
-    if accounts.iter().any(|a| a.id == id) {
+    let current_accounts = state.settings.current_accounts();
+    if current_accounts.iter().any(|a| a.id == id) {
         return json_error(&ApiError::bad_request(format!("account '{id}' already exists")));
     }
-    let mut new_accounts = accounts;
+    let mut new_accounts = current_accounts;
     new_accounts.push(AccountConfig {
         id: id.clone(),
         label: label.clone(),
         enabled: true,
     });
-    if let Err(err) = state.settings.update_api(config::ApiConfig {
-        enabled: state.settings.current().enabled,
-        port: state.settings.current().port,
-        api_key: state.settings.current().api_key,
-        expose_network: false,
-        webhook_url: state.settings.current().webhook_url,
-        webhook_secret: state.settings.current().webhook_secret,
-    }) {
-        return json_error(&ApiError::internal(err));
-    }
     if let Err(err) = state.settings.update_accounts(new_accounts.clone()) {
         return json_error(&ApiError::internal(err));
     }
