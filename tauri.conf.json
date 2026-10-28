@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "ZapZap",
+  "productName": "ZapDude",
   "version": "1.0.0",
   "identifier": "app.zapzap.desktop",
   "build": {

@@ -2,108 +2,195 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>ZapZap</title>
+  <title>ZapDude</title>
   <style>
+    :root {
+      --bg-top: #0d1f19;
+      --bg-bottom: #08130f;
+      --stroke: rgba(255, 255, 255, 0.07);
+      --tile: rgba(255, 255, 255, 0.045);
+      --tile-hover: rgba(255, 255, 255, 0.09);
+      --accent: #2ee06f;
+      --accent-soft: rgba(46, 224, 111, 0.14);
+      --text: #eef4f1;
+      --muted: #6b8279;
+      --warn: #f5b83d;
+      --danger: #ff5f56;
+    }
     * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
     html, body { height: 100%; }
     body {
-      font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
-      background: linear-gradient(180deg, #0e211c 0%, #081511 100%);
+      font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+      background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
       display: flex; flex-direction: column; align-items: center;
-      padding: 14px 0 12px;
+      padding: 16px 0 14px;
       overflow: hidden;
-      border-right: 1px solid rgba(255,255,255,0.06);
+      border-right: 1px solid var(--stroke);
     }
+    svg.icon { width: 100%; height: 100%; display: block; }
+
+    /* ---- Brand / logo (opens the active account) ---- */
     .logo {
-      width: 42px; height: 42px; border-radius: 13px;
-      background: linear-gradient(135deg, #25d366, #128c7e);
+      width: 44px; height: 44px; border-radius: 14px;
+      background: linear-gradient(140deg, #34e877 0%, #0f9e6c 100%);
       display: flex; align-items: center; justify-content: center;
-      font-size: 21px; margin-bottom: 20px; flex-shrink: 0;
-      box-shadow: 0 4px 16px rgba(37, 211, 102, 0.35);
+      flex-shrink: 0; cursor: pointer; position: relative;
+      box-shadow:
+        0 2px 10px rgba(46, 224, 111, 0.35),
+        inset 0 1px 0 rgba(255, 255, 255, 0.35);
+      transition: transform 0.14s ease, box-shadow 0.14s ease;
     }
+    .logo:hover { transform: translateY(-1px) scale(1.04); box-shadow: 0 4px 18px rgba(46,224,111,0.5), inset 0 1px 0 rgba(255,255,255,0.35); }
+    .logo:active { transform: scale(0.97); }
+    .logo svg { width: 22px; height: 22px; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.25)); }
+
     .rail-scroll {
       flex: 1; overflow-y: auto; width: 100%;
       display: flex; flex-direction: column; align-items: center; gap: 10px;
-      padding: 2px 0; scrollbar-width: none;
+      padding: 18px 0 6px; scrollbar-width: none;
+      mask-image: linear-gradient(180deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+      -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
     }
     .rail-scroll::-webkit-scrollbar { display: none; }
+
+    /* ---- Account tiles ---- */
     .avatar {
-      width: 46px; height: 46px; border-radius: 50%;
-      background: #182b26; color: #e9edef;
+      width: 44px; height: 44px; border-radius: 14px;
+      background: var(--tile);
+      color: var(--text);
       display: flex; align-items: center; justify-content: center;
-      font-size: 17px; font-weight: 600; cursor: pointer;
-      position: relative; border: 2px solid transparent;
-      transition: transform 0.12s ease, border-color 0.12s, background 0.12s;
+      cursor: pointer; position: relative;
+      border: 1px solid transparent;
+      transition: transform 0.14s ease, background 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
       flex-shrink: 0;
     }
-    .avatar:hover { background: #1f3831; transform: scale(1.07); }
-    .avatar.active { border-color: #25d366; background: #143329; box-shadow: 0 0 12px rgba(37,211,102,0.35); }
+    .avatar svg { width: 20px; height: 20px; opacity: 0.85; }
+    .avatar:hover { background: var(--tile-hover); transform: translateY(-1px); border-color: var(--stroke); }
+    .avatar.active {
+      background: var(--accent-soft);
+      border-color: rgba(46, 224, 111, 0.55);
+      box-shadow: 0 0 0 1px rgba(46,224,111,0.18), 0 2px 14px rgba(46,224,111,0.22);
+    }
+    .avatar.active svg { opacity: 1; color: var(--accent); }
     .avatar.armed {
-      border-color: #ef5350; background: #3a1414; color: #ff8a80;
-      box-shadow: 0 0 12px rgba(239, 83, 80, 0.5);
-      animation: pulse 1s ease-in-out infinite;
+      background: rgba(255, 95, 86, 0.16);
+      border-color: rgba(255, 95, 86, 0.6);
+      box-shadow: 0 0 0 1px rgba(255,95,86,0.25), 0 2px 14px rgba(255,95,86,0.3);
+      animation: armed-pulse 0.9s ease-in-out infinite;
     }
-    @keyframes pulse { 50% { transform: scale(1.12); } }
+    .avatar.armed svg { color: var(--danger); opacity: 1; }
+    @keyframes armed-pulse { 50% { transform: scale(1.08); } }
     .avatar .dot {
-      position: absolute; right: -1px; bottom: -1px;
-      width: 13px; height: 13px; border-radius: 50%;
-      border: 2px solid #0b1a16; background: #6a7f78;
+      position: absolute; right: -2px; bottom: -2px;
+      width: 12px; height: 12px; border-radius: 50%;
+      border: 2px solid var(--bg-bottom);
+      background: #5f7a70;
     }
-    .dot.logged { background: #25d366; }
-    .dot.qr { background: #f0b232; }
-    .dot.detecting { background: #6a7f78; }
+    .dot.logged { background: var(--accent); }
+    .dot.qr { background: var(--warn); }
+    .dot.detecting { background: #5f7a70; }
+
     .tooltip {
-      position: absolute; left: 58px; top: 50%; transform: translateY(-50%);
-      background: #1f2c33; color: #e9edef; font-size: 12px; font-weight: 500;
-      padding: 6px 10px; border-radius: 8px; white-space: nowrap;
-      opacity: 0; pointer-events: none; transition: opacity 0.12s;
-      box-shadow: 0 6px 18px rgba(0,0,0,0.45); z-index: 20;
+      position: absolute; left: 58px; top: 50%; transform: translateY(-50%) translateX(-4px);
+      background: rgba(16, 28, 24, 0.96); color: var(--text);
+      font-size: 12px; font-weight: 500; letter-spacing: 0.1px;
+      padding: 7px 11px; border-radius: 9px; white-space: nowrap;
+      opacity: 0; pointer-events: none; transition: opacity 0.14s ease, transform 0.14s ease;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06);
+      z-index: 20;
     }
-    .avatar:hover .tooltip, .icon-btn:hover .tooltip, .add-btn:hover .tooltip { opacity: 1; }
-    .avatar.armed .tooltip { background: #4a1616; color: #ff8a80; opacity: 1; }
+    .avatar:hover .tooltip, .icon-btn:hover .tooltip, .logo:hover .tooltip, .add-btn:hover .tooltip {
+      opacity: 1; transform: translateY(-50%) translateX(0);
+    }
+    .avatar.armed .tooltip { background: rgba(60, 18, 16, 0.97); color: #ffb4ae; opacity: 1; transform: translateY(-50%) translateX(0); }
+
+    /* ---- Add account ---- */
     .add-btn {
-      width: 46px; height: 46px; border-radius: 50%;
-      background: rgba(37, 211, 102, 0.10);
-      border: 2px dashed rgba(37, 211, 102, 0.55);
-      color: #25d366; font-size: 24px; cursor: pointer;
+      width: 44px; height: 44px; border-radius: 14px;
+      background: var(--tile);
+      border: 1.5px dashed rgba(46, 224, 111, 0.4);
+      color: var(--accent);
+      cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      transition: background 0.12s, transform 0.12s;
-      flex-shrink: 0; margin-top: 4px; position: relative;
-      font-family: inherit;
+      transition: background 0.14s ease, transform 0.14s ease, border-color 0.14s ease;
+      flex-shrink: 0; margin-top: 10px; position: relative;
     }
-    .add-btn:hover { background: rgba(37, 211, 102, 0.22); transform: scale(1.07); }
-    .add-btn:disabled { opacity: 0.5; cursor: wait; }
+    .add-btn svg { width: 18px; height: 18px; }
+    .add-btn:hover { background: var(--accent-soft); border-color: rgba(46,224,111,0.7); transform: translateY(-1px); }
+    .add-btn:disabled { opacity: 0.45; cursor: wait; transform: none; }
+
+    /* ---- Footer ---- */
     .footer {
-      display: flex; flex-direction: column; gap: 6px; align-items: center;
-      padding-top: 12px; flex-shrink: 0;
+      display: flex; flex-direction: column; gap: 4px; align-items: center;
+      padding-top: 10px; flex-shrink: 0;
+      border-top: 1px solid var(--stroke);
+      width: 100%;
     }
     .icon-btn {
-      width: 38px; height: 38px; border-radius: 11px; border: none;
-      background: transparent; color: #7d938b; font-size: 17px; cursor: pointer;
+      width: 40px; height: 36px; border-radius: 10px; border: none;
+      background: transparent; color: var(--muted); cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      transition: background 0.12s, color 0.12s; position: relative;
-      font-family: inherit;
+      transition: background 0.14s ease, color 0.14s ease; position: relative;
     }
-    .icon-btn:hover { background: #182b26; color: #e9edef; }
-    .version { font-size: 9px; color: #3d534b; margin-top: 4px; }
+    .icon-btn svg { width: 17px; height: 17px; }
+    .icon-btn:hover { background: var(--tile); color: var(--text); }
+    .version { font-size: 9.5px; color: rgba(107, 130, 121, 0.55); padding: 4px 0 0; letter-spacing: 0.3px; }
     .offline {
-      position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
-      background: #3a2a1a; color: #f0b232; font-size: 10px;
-      padding: 3px 8px; border-radius: 6px; display: none; z-index: 30;
+      position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+      background: rgba(80, 56, 18, 0.95); color: var(--warn); font-size: 10.5px; font-weight: 600;
+      padding: 4px 10px; border-radius: 7px; display: none; z-index: 30;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.4);
     }
   </style>
 </head>
 <body>
+  <!-- Icon library -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-bolt" viewBox="0 0 24 24">
+        <path fill="currentColor" d="M13.2 2.2c.4-.5 1.2-.1 1.1.5l-1.1 6.6h5.1c.6 0 .9.7.5 1.1L10.8 21.8c-.4.5-1.2.1-1.1-.5l1.1-6.6H5.7c-.6 0-.9-.7-.5-1.1L13.2 2.2z"/>
+      </symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24">
+        <path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" d="M12 5v14M5 12h14"/>
+      </symbol>
+      <symbol id="i-gear" viewBox="0 0 24 24">
+        <g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3.2"/>
+          <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.65 8.9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.08A1.7 1.7 0 0 0 10.12 3V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.08a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.11z"/>
+        </g>
+      </symbol>
+      <symbol id="i-info" viewBox="0 0 24 24">
+        <g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+          <circle cx="12" cy="12" r="9"/>
+          <line x1="12" y1="11" x2="12" y2="16.2"/>
+          <circle cx="12" cy="7.8" r="0.4" fill="currentColor" stroke-width="1.6"/>
+        </g>
+      </symbol>
+    </defs>
+  </svg>
+
   <div class="offline" id="offline">Reconectando…</div>
-  <div class="logo">⚡</div>
+
+  <div class="logo" id="logo" title="ZapDude">
+    <svg class="icon"><use href="#i-bolt"/></svg>
+    <span class="tooltip">Abrir cuenta activa</span>
+  </div>
+
   <div class="rail-scroll" id="rail"></div>
-  <button class="add-btn" id="addBtn" title="Agregar cuenta">+</button>
+
+  <button class="add-btn" id="addBtn" title="Agregar cuenta">
+    <svg class="icon"><use href="#i-plus"/></svg>
+    <span class="tooltip">Agregar cuenta</span>
+  </button>
+
   <div class="footer">
-    <button class="icon-btn" id="settingsBtn" title="Configuración API">
-      ⚙<span class="tooltip">Configuración API</span>
+    <button class="icon-btn" id="settingsBtn">
+      <svg class="icon"><use href="#i-gear"/></svg>
+      <span class="tooltip">Configuración API</span>
     </button>
-    <button class="icon-btn" id="aboutBtn" title="Acerca de">
-      ⓘ<span class="tooltip">Acerca de ZapZap</span>
+    <button class="icon-btn" id="aboutBtn">
+      <svg class="icon"><use href="#i-info"/></svg>
+      <span class="tooltip">Acerca de ZapDude</span>
     </button>
     <div class="version" id="version">v1.0.0</div>
   </div>
@@ -111,7 +198,8 @@
   <script>
     "use strict";
     let armedId = null;
-    let armedTimer = null;
+    let accounts = [];
+    let activeId = null;
     let wasOffline = false;
 
     async function api(path, options) {
@@ -124,19 +212,8 @@
       return String(s).replace(/[&<>\"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
     }
 
-    // Avatar letter: the account number when the label has one ("Cuenta 3"
-    // shows "3"), otherwise the label's first letter.
-    function badge(label) {
-      const m = String(label || "").match(/(\d+)\s*$/);
-      return m ? m[1] : String(label || "?").charAt(0).toUpperCase();
-    }
-
     function disarm() {
-      if (armedId) {
-        armedId = null;
-        clearTimeout(armedTimer);
-        loadRail();
-      }
+      if (armedId) { armedId = null; loadRail(); }
     }
 
     // Self-heal: if the API goes away (port change / restart), show a badge
@@ -158,22 +235,23 @@
       let data;
       try { data = await api("/api/accounts"); }
       catch (e) { return; } // healthWatch handles reconnection UI
-      const accounts = data.accounts || [];
+      accounts = data.accounts || [];
       const rail = document.getElementById("rail");
       rail.innerHTML = "";
       for (const a of accounts) {
+        if (a.active) activeId = a.id;
         const el = document.createElement("div");
         const isArmed = armedId === a.id;
         el.className = "avatar" + (a.active ? " active" : "") + (isArmed ? " armed" : "");
         const state = a.session_state === "logged_in" ? "logged" : a.session_state === "scan_qr" ? "qr" : "detecting";
-        const stateLabel = a.session_state === "logged_in" ? "conectado" : a.session_state === "scan_qr" ? "espera QR" : "cargando";
-        el.innerHTML = esc(isArmed ? "×" : badge(a.label)) +
+        const stateLabel = a.session_state === "logged_in" ? "conectada" : a.session_state === "scan_qr" ? "esperando QR" : "cargando";
+        el.innerHTML = `<svg class="icon"><use href="#i-bolt"/></svg>` +
           `<span class="dot ${state}"></span>` +
           `<span class="tooltip">${isArmed ? "Clic de nuevo para eliminar" : esc(a.label) + " · " + stateLabel}</span>`;
         el.onclick = async () => {
           if (armedId === a.id) {
             try { await api("/api/accounts/" + encodeURIComponent(a.id), { method: "DELETE" }); } catch (e) { console.error(e); }
-            disarm();
+            armedId = null;
             return;
           }
           if (armedId) { disarm(); return; }
@@ -182,14 +260,26 @@
         el.oncontextmenu = (ev) => {
           ev.preventDefault();
           if (armedId === a.id) { disarm(); return; }
-          disarm();
           armedId = a.id;
           loadRail();
-          armedTimer = setTimeout(disarm, 4000);
         };
         rail.appendChild(el);
       }
     }
+
+    // Logo click: bring the active account to the front (create one if the
+    // registry is somehow empty).
+    document.getElementById("logo").onclick = async () => {
+      disarm();
+      try {
+        if (!accounts.length) { await api("/api/accounts", { method: "POST" }); }
+        else {
+          const target = activeId && accounts.some(a => a.id === activeId)
+            ? activeId : accounts[0].id;
+          await api("/api/accounts/" + encodeURIComponent(target) + "/open", { method: "POST" });
+        }
+      } catch (e) { console.error(e); }
+    };
 
     document.getElementById("addBtn").onclick = async (ev) => {
       disarm();
@@ -214,7 +304,7 @@
         document.getElementById("version").textContent = "v" + (h.version || "1.0.0");
       } catch (_) {}
       await loadRail();
-      setInterval(loadRail, 4000);
+      setInterval(loadRail, 2500);
       healthWatch();
     })();
   </script>

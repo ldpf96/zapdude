@@ -246,7 +246,7 @@ fn relayout(window: &Window<Wry>) {
 /// The first account is opened right after by `auto_open_first_account`.
 pub fn create_shell(app: &AppHandle) -> tauri::Result<()> {
     let window = tauri::window::Window::builder(app, "main")
-        .title("ZapZap")
+        .title("ZapDude")
         .inner_size(1180.0_f64, 780.0_f64)
         .min_inner_size(760.0_f64, 560.0_f64)
         .resizable(true)
@@ -391,19 +391,25 @@ pub fn open_account_webview(
     show_content(app, &account_webview_label(&account.id))
 }
 
-/// Return to the welcome backdrop (account webview stays parked).
+/// Return to a sensible view after an account is hidden: the first account
+/// (created fresh if none remains) — the welcome backdrop is never the
+/// destination.
 pub fn hide_account_content(app: &AppHandle, _id: &str) -> tauri::Result<()> {
-    show_content(app, "welcome")
+    auto_open_first_account(app);
+    Ok(())
 }
 
 /// Close an account webview entirely (used when removing the account).
+/// If the removed account was on screen, fall through to the first remaining
+/// account (auto-created when none remains) instead of the welcome backdrop.
 pub fn close_account_webview(app: &AppHandle, id: &str) {
     let label = account_webview_label(id);
+    let was_active = active_content().as_deref() == Some(label.as_str());
     if let Some(webview) = app.get_webview(&label) {
         let _ = webview.close();
     }
-    if active_content().as_deref() == Some(label.as_str()) {
-        let _ = show_content(app, "welcome");
+    if was_active {
+        auto_open_first_account(app);
     }
 }
 
@@ -442,7 +448,7 @@ pub fn create_settings_window(app: &AppHandle, tab: &str) -> tauri::Result<()> {
         .parse()
         .expect("settings URL must parse");
     tauri::webview::WebviewWindowBuilder::new(app, "settings", WebviewUrl::External(url))
-        .title("Configuración — ZapZap")
+        .title("Configuración — ZapDude")
         .inner_size(720.0_f64, 660.0_f64)
         .min_inner_size(560.0_f64, 500.0_f64)
         .resizable(true)
@@ -468,7 +474,7 @@ pub fn initialize_tray(app: &App) {
         }
         let separator = PredefinedMenuItem::separator(app)?;
         let hide_all = MenuItem::with_id(app, "hide-all", "Ocultar ventanas", true, None::<&str>)?;
-        let quit = MenuItem::with_id(app, "quit", "Salir de ZapZap", true, None::<&str>)?;
+        let quit = MenuItem::with_id(app, "quit", "Salir de ZapDude", true, None::<&str>)?;
         let menu_items: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> = item_pool
             .iter()
             .map(|item| item as &dyn tauri::menu::IsMenuItem<tauri::Wry>)

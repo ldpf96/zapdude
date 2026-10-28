@@ -22,6 +22,7 @@
 //! `X-API-Key` (or `Authorization: Bearer`) AND `enabled: true` in config.
 //! Rate limit: 60 requests / rolling 60 s. Body cap: 1 MB.
 
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -471,37 +472,61 @@ async fn post_config(
     }))
 }
 
+/// Cached session states (id → (state, fetched_at)) so the rail UI never
+/// waits on a page snapshot: responses are instant, stale entries refresh
+/// in the background.
+static SESSION_STATE_CACHE: OnceLock<Mutex<HashMap<String, (String, std::time::Instant)>>> =
+    OnceLock::new();
+
+fn session_state_cache() -> &'static Mutex<HashMap<String, (String, std::time::Instant)>> {
+    SESSION_STATE_CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+const SESSION_STATE_TTL: std::time::Duration = std::time::Duration::from_millis(2500);
+
+fn cached_session_state(account_id: &str) -> Option<String> {
+    session_state_cache()
+        .lock()
+        .ok()?
+        .get(account_id)
+        .filter(|(_, fetched)| fetched.elapsed() < SESSION_STATE_TTL)
+        .map(|(state, _)| state.clone())
+}
+
+fn spawn_session_state_refresh(account_id: String) {
+    tokio::spawn(async move {
+        let state = if let Some(bridge) = page_for(Some(&account_id)) {
+            tokio::time::timeout(
+                std::time::Duration::from_millis(1200),
+                bridge.status_snapshot(),
+            )
+            .await
+            .ok()
+            .and_then(|result| result.ok())
+            .map(|snapshot| three_state(&snapshot))
+            .unwrap_or_else(|| "detecting".to_string())
+        } else {
+            "detecting".to_string()
+        };
+        if let Ok(mut cache) = session_state_cache().lock() {
+            cache.insert(account_id, (state, std::time::Instant::now()));
+        }
+    });
+}
+
 async fn list_accounts() -> (StatusCode, Json<Value>) {
     let Some(state_settings) = settings() else {
         return json_error(&ApiError::internal("app state not initialized"));
     };
     let active = crate::window::active_content();
-    // Snapshot every account page concurrently with a small budget so a
-    // stuck WhatsApp page never stalls the rail polling.
-    let mut set = tokio::task::JoinSet::new();
-    for account in state_settings.current_accounts() {
-        set.spawn(async move {
-            let session_state = if let Some(bridge) = page_for(Some(&account.id)) {
-                tokio::time::timeout(std::time::Duration::from_millis(1200), bridge.status_snapshot())
-                    .await
-                    .ok()
-                    .and_then(|result| result.ok())
-                    .map(|snapshot| three_state(&snapshot))
-                    .unwrap_or_else(|| "detecting".to_string())
-            } else {
-                "detecting".to_string()
-            };
-            (account.id, session_state)
-        });
-    }
-    let mut states = std::collections::HashMap::new();
-    while let Some(joined) = set.join_next().await {
-        if let Ok((id, session_state)) = joined {
-            states.insert(id, session_state);
+    let accounts = state_settings.current_accounts();
+    // Background refresh for anything stale — the response NEVER waits.
+    for account in &accounts {
+        if cached_session_state(&account.id).is_none() {
+            spawn_session_state_refresh(account.id.clone());
         }
     }
-    let account_entries: Vec<Value> = state_settings
-        .current_accounts()
+    let account_entries: Vec<Value> = accounts
         .iter()
         .map(|account| {
             json!({
@@ -510,7 +535,8 @@ async fn list_accounts() -> (StatusCode, Json<Value>) {
                 "enabled": account.enabled,
                 "active": active.as_deref()
                     == Some(crate::window::account_webview_label(&account.id).as_str()),
-                "session_state": states.get(&account.id).cloned().unwrap_or_else(|| "detecting".to_string()),
+                "session_state": cached_session_state(&account.id)
+                    .unwrap_or_else(|| "detecting".to_string()),
             })
         })
         .collect();

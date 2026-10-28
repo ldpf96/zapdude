@@ -106,9 +106,9 @@ fn sanitize_accounts(raw: Vec<AccountConfig>) -> Vec<AccountConfig> {
         }
         result.push(account);
     }
-    if result.is_empty() {
-        result.push(AccountConfig::default());
-    }
+    // An EMPTY list is legal (the user removed every account); the shell
+    // auto-creates a fresh account on the next open. The [default] fallback
+    // only applies to legacy configs being parsed at load time.
     result
 }
 
@@ -230,16 +230,6 @@ impl SettingsState {
     pub fn update_accounts(&self, accounts: Vec<AccountConfig>) -> Result<(), String> {
         self.write(|file| {
             file.accounts = sanitize_accounts(accounts);
-            // TEMP DEBUG: catch unexpected account-list rewrites (a stale
-            // empty list would wipe user accounts). Remove after diagnosis.
-            if file.accounts.len() <= 1 {
-                eprintln!(
-                    "zapdude: DEBUG update_accounts -> {} account(s): {:?}",
-                    file.accounts.len(),
-                    file.accounts.iter().map(|a| a.id.clone()).collect::<Vec<_>>()
-                );
-                eprintln!("{}", std::backtrace::Backtrace::force_capture());
-            }
             self.persist_locked(file)
         })
     }
@@ -341,9 +331,10 @@ mod tests {
     }
 
     #[test]
-    fn sanitize_accounts_falls_back_to_default() {
+    fn sanitize_accounts_allows_empty_registry() {
+        // The user may remove every account; the shell auto-creates a fresh
+        // one on the next open instead of resurrecting a zombie default.
         let clean = sanitize_accounts(vec![]);
-        assert_eq!(clean.len(), 1);
-        assert_eq!(clean[0].id, "default");
+        assert_eq!(clean.len(), 0);
     }
 }
