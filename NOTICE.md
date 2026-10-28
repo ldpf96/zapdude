@@ -1,43 +1,65 @@
-# NOTICE — Zapdude
+# NOTICE - Zapdude
 
-Copyright (c) 2026 [ldpf96](https://github.com/ldpf96)
-Licencia: **GNU Affero General Public License v3.0** (`LICENSE`).
+Copyright (c) 2026 ldpf96 (https://github.com/ldpf96)
+License: **GNU Affero General Public License v3.0** (see `LICENSE`).
 
-## De dónde viene este proyecto
+## Origin and honest attribution
 
-**Zapdude es un proyecto original**: todo su código (Rust, Tauri 2,
-WebView2, HTML/JS de la interfaz, scripts y config) fue escrito desde cero
-para este proyecto. No se copia, porteó ni reutiliza código de ningún otro
-cliente.
+Zapdude began as a personal take on the ZapZap concept. The story is
+straightforward and we want it straight on the record too:
 
-La *idea* (un cliente de WhatsApp Web multi-cuenta con rail lateral y
-estética sencilla) está **inspirada** en el concepto del cliente
-**ZapZap**, de Rafael Tosta:
+1. **Where the idea comes from.** The starting point was
+   [ZapZap](https://github.com/rafatosta/zapzap) by Rafael Tosta, a
+   WhatsApp Web multi-account desktop client written in Python (GTK).
+   ZapZap's source code was used as a **reference for design and
+   behavior**: features like the account rail, one click to add a
+   WhatsApp account, opening straight into its QR code, the system tray
+   behavior and the general interaction flow were deliberately modeled
+   after what ZapZap does.
 
-- Proyecto que inspiró la idea: https://github.com/rafatosta/zapzap (Python/GTK).
-- Nada del código de ZapZap se usa aquí; los stacks, lenguajes y librerías
-  son completamente distintos, por lo que **no es una obra derivada**:
-  es una obra nueva e independiente referenciada como inspiración.
-  Se le reconoce el crédito por la *idea* que motivó este diseño.
+2. **What the code is.** The implementation shipped here is not a copy
+   of ZapZap's code. ZapZap is written in Python against GTK; Zapdude is
+   written in Rust against Tauri 2 and WebView2, from a different stack,
+   file layout and architecture. Text level, the two codebases share
+   nothing. Behavior level, the early versions intentionally tried to
+   feel like ZapZap, and over time the project grew into something
+   substantially different: options rendered in a full screen drawer,
+   a local automation API for people and AI agents with SSE and signed
+   webhooks, immediate account switching, per account call pop-outs and
+   more.
 
-## Marca y propiedad
+3. **Why AGPL-3.0.** The author picked the GNU AGPL v3 (the license of
+   this project) so the code released here carries a strong copyleft:
+   anyone who builds on Zapdude or serves a modified version to others
+   under the network terms of AGPL 13 must share the corresponding
+   source. We are not stating that this project is free of design
+   obligations toward anyone: we explicitly credit Rafael Tosta as the
+   author of the original ZapZap client whose design inspired this one.
+   If you believe any part of this project infringes your rights, open
+   an issue and we will fix it.
 
-- **Zapdude** es un proyecto independiente y comunitario.
-- **No está afiliado, patrocinado ni respaldado** por WhatsApp ni por Meta
-  Platforms, Inc. **WhatsApp** es una marca de Meta Platforms, Inc.
-- Los teléfonos, chats y cuentas siguen siendo de cada usuario; Zapdude es
-  solo una ventana a tu propio WhatsApp Web.
+4. **AI assisted development.** This project was implemented by its
+   author with a heavy assist from AI tooling: the **OpenCode** agent
+   harness driving the **GLM-5.3** model (by Z.ai), working in what is
+   casually known as **vibe coding**: fast, intent driven iterations with
+   the agent writing the bulk of the code and the author steering,
+   reviewing and verifying everything on real hardware before shipping.
+   We think this should be said plainly instead of assuming AI is hidden
+   somewhere.
 
-## Licencia
+## Trademark and ownership
 
-Todo el código de Zapdude se distribuye bajo **AGPL-3.0-or-later**:
+- **Zapdude** is an independent community project.
+- It is **not affiliated with, endorsed or sponsored by** WhatsApp or
+  Meta Platforms, Inc. **WhatsApp** is a trademark of Meta Platforms,
+  Inc. All chat data belongs to each user; Zapdude only shows your own
+  WhatsApp Web.
+- **ZapZap** is the project of Rafael Tosta and remains his work.
 
-- Copiar, modificar y redistribuir es libre, respetando los términos de
-  la GNU AGPL v3 (incluida la §13 sobre ofertas interactivas: si ejecutas
-  una versión modificada para terceros por red, debes ofrecerles el código
-  fuente).
-- Las obras modificadas construidas sobre Zapdude deben seguir siendo
-  AGPL-3.0-or-later.
-- Aviso de inspiración: si tu trabajo deriva de la *idea* (no del código),
-  agradecemos — pero no exige legalmente — mencionar tanto a Zapdude como
-  a ZapZap (Rafael Tosta) como inspiraciones.
+## License
+
+- Copying, modifying and redistributing Zapdude is free under the terms
+  of the GNU AGPL v3. Modified works stay AGPL-3.0 or later.
+- Attribution notes: mentioning Zapdude (and ZapZap, by Rafael Tosta)
+  when your work derives from them is appreciated and honest, though
+  the license text is what legally applies.

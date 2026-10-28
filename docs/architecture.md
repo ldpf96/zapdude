@@ -1,103 +1,139 @@
-# Arquitectura — Zapdude
+# Architecture - Zapdude
 
-Documento vivo. Describe los componentes y decisiones de diseño del
-proyecto (código original de ldpf96; la *idea* está inspirada en el
-concepto de ZapZap, ver NOTICE.md).
+Living document. Describes the components and design decisions of the
+project (original code by ldpf96; the starting design reference was the
+ZapZap concept by Rafael Tosta, see NOTICE.md).
 
-## Vista general
+## Overview
 
 ```
-┌────────────────────────────────────────────────────────────────────┐
-│  zapdude.exe (Tauri 2 + WebView2)                                  │
-│                                                                    │
-│  ┌──────────────┐   ┌───────────────┐   ┌──────────────────────┐   │
-│  │ ventana      │   │ ventana       │   │ ventana              │   │
-│  │ account-     │   │ account-work  │   │ account-…            │   │
-│  │ default      │   │ (oculta)      │   │ (oculta)             │   │
-│  │              │   │               │   │                      │   │
-│  │ perfil web-  │   │ perfil web-   │   │ perfil webview/work  │   │
-│  │ view/default │   │ view/work     │   │                      │   │
-│  └──────┬───────┘   └───────┬───────┘   └──────────┬───────────┘   │
-│         │ bridge JS         │                      │               │
-│         ▼                   ▼                      ▼               │
-│  ┌──────────────────────────────────────────────────────────────┐   │
-│  │ page_ops (1 hilo poller/beacons por cuenta, 30 ms)           │   │
-│  │ transporte: eval_with_callback (primario) + beacon hash URL  │   │
-│  └───────────────────────────────┬──────────────────────────────┘   │
-│                                  │                                  │
-│  ┌───────────────────────┐   ┌───▼──────────────────────────────┐   │
-│  │ tray (bandeja)        │   │ API axum  (loopback 127.0.0.1)   │   │
-│  │ Show/Hide/Exit        │   │ REST + SSE + webhook (ureq v3)   │   │
-│  └───────────────────────┘   └──────────────────────────────────┘   │
-│                                                                    │
-│  config.json (settings) ── personas: ventanas ── agentes: API      │
-└────────────────────────────────────────────────────────────────────┘
++----------------------------------------------------------------------+
+|  zapdude.exe (Tauri 2 + WebView2)                                    |
+|                                                                      |
+|  +----------------------------------------------------------------+  |
+|  | main window (single window shell)                              |  |
+|  |                                                                |  |
+|  |  [ rail 76px ]   [ welcome / account webviews / drawer ]       |  |
+|  |                                                                |  |
+|  |  rail.html      : logo (toggles drawer), avatars, "+"          |  |
+|  |  account-<id>   : one WhatsApp Web webview per account         |  |
+|  |  drawer         : full screen options panel, created on demand |  |
+|  |  welcome        : branded backdrop / empty-state destination   |  |
+|  +----------------------------------------------------------------+  |
+|                                                                      |
+|  [ tray ] Show <account>, Hide all windows, Quit Zapdude             |
+|                                                                      |
+|  [ loopback API server ] REST + SSE + signed webhook                 |
++----------------------------------------------------------------------+
 ```
 
-## Módulos
+Call pop-outs open as separate windows. They share the account's WebView2
+environment, so the session and cookies are the same one the page uses.
 
-| Módulo | Responsabilidad |
+## Components
+
+| Piece | Role |
 |---|---|
-| `src/main.rs` | arranque, carga de settings, `on_window_event` (CloseRequested→hide en cuentas), `SHARED` global |
-| `src/config.rs` | `config.json`: `ApiConfig` + `AccountConfig[]`, sanitización (ids `alnum-_`, ≤48 chars, dedupe, fallback "default"), persistencia atómica, BOM-tolerante |
-| `src/window.rs` | crea ventanas por cuenta con perfil aislado, UA + args Chromium (`--disable-background-timer-throttling…`), `initialization_script`, permisos, bandeja y router de menús |
-| `src/api/server.rs` | servidor axum en hilo "zapdude-api" (tokio dedicado, apagado select/2s), rutas planas `/api/*`, autorización, rate limit, estados de sesión |
-| `src/api/page_ops.rs` | registry de bridges por cuenta (`page_for`), evaluaciones JS con timeout 15 s, flows open-chat/send/get-status/list-chats, beacons entrantes→eventos etiquetados |
-| `src/api/protocol.rs` | API key, errores HTTP tipados, rate limiter anillo de 60/min, HMAC firma webhook |
-| `src/api/events.rs` | ring buffer 200 + broadcast para SSE |
-| `scripts/api_page_bridge.js` | residente por documento top-level: `window.__zapdudeApiV1` (pageInfo/composerInfo/sendCurrent/chats), hook de Notification→eventos, beacon `#__zapdude=` |
-| `scripts/client_hints_fix.js` | alinea `navigator.userAgentData`/`userAgent` con Chrome estable (hacia llamadas de WhatsApp Web) |
+| `src/main.rs` | startup order: single instance, server, shell, tray, first account |
+| `src/window.rs` | the webview shell: rail + parked accounts + drawer + tray + popouts |
+| `src/config.rs` | settings on disk: `api` + `prefs` + `accounts`, sanitized, BOM tolerant |
+| `src/api/mod.rs` | module glue for the automation API |
+| `src/api/protocol.rs` | auth (`X-API-Key`/Bearer), rate limit (60/60s), body caps, HMAC signing, phone normalization |
+| `src/api/server.rs` | axum 0.8 loopback server, shell UI router, config and preferences endpoints |
+| `src/api/page_ops.rs` | per webview bridge (`window.__zapdudeApiV1`, page info, composer ops, chat list) and its beacon poller |
+| `src/api/events.rs` | event ring, SSE broadcast, webhook delivery |
+| `scripts/client_hints_fix.js` | JS side Chrome identity (Sec-CH-UA is HTTP layer and not rewritable from the host) |
+| `scripts/api_page_bridge.js` | resident per document: `window.__zapdudeApiV1`, Notification hook to events, `#__zapdude=` beacon fallback |
+| `scripts/hide_download_banners.js` | removes the "download the app" promos with guardrails |
+| `ui/rail.html` | left rail: logo toggles the drawer, avatars with state dots, right click delete, "+" |
+| `ui/drawer.html` | full screen options: preferences, account rename, API settings, agent docs, About |
+| `ui/welcome.html` | branded backdrop and the empty-state destination when no accounts remain |
+| `windows/installer-hooks.nsh` | NSIS hook that wipes `%APPDATA%\app.zapzap.desktop` on uninstall |
 
-## Decisiones clave
+## Startup order (critical)
 
-1. **Multi-cuenta real por aislamiento de perfil:** cada cuenta tiene su
-   `data_directory` WebView2 (sesiones, localStorage, Service Worker
-   independientes). Identidad estable = `id` alfanumérico persistido;
-   `label` es editable para humanos. La primera cuenta habilitada arranca
-   visible; el resto oculto recibiendo notificaciones.
-2. **Nunca se rompe:** la página externa (WhatsApp) podría cargar mal —
-   el puente es defensivo: cada consulta puede degradar a error de API
-   (`unavailable`, `degraded`) pero la ventana, la bandeja y la API
-   siguen vivas. Los errores de poller se ignoran y se reintentan.
-3. **Transporte página↝host:** `eval_with_callback` (WebView2 moderno;
-   ojo: en Windows el resultado llega **JSON doble-codificado si es
-   String** → se desenrolla en `evaluate`). Reserva/eventos: beacon en el
-   hash de la URL actual `#__zapdude=<json>` polled cada 30 ms; el host
-   limpia la parte del hash tras consumir.
-4. **API:** loopback por defecto (`127.0.0.1`), clave obligatoria
-   (excepto `healthz`), 60 req/min, cuerpo ≤ 1 MB, eventos con ring 200 +
-   broadcast SSE (keep-alive 15 s), webhook opcional firmado HMAC-SHA256
-   (`X-Zapdude-Signature: sha256=…`) enviado con `ureq` v3.
-5. **Apagado limpio:** `ServerHolder` con `AtomicBool` vigilado en
-   `tokio::select!` y `shutdown_timeout(2s)`; la tray "Salir de Zapdude"
-   apaga servidor y luego `app.exit(0)`. Cerrar ventanas de cuenta solo
-   las oculta (notificaciones siguen).
-6. **Identidad de llamadas:** UA Chrome estable + `client_hints_fix.js`
-   en el frame superior. Limitación honesta: no se pueden reescribir las
-   cabeceras HTTP `Sec-CH-UA` reales (Tauri solo toca `tauri://`);
-   el *feature gate* de WhatsApp Web lee la identidad JS, pero WhatsApp
-   puede pedir "actualizar" en casos raros.
-7. **Args Chromium:** además de los disable default de WebView2
-   (msWebOOUI/msPdfOOUI/msSmartScreenProtection), se congelan throttling
-   de timers y render en segundo plano para que las cuentas ocultas
-   sigan recibiendo mensajes y las llamadas suenen.
+1. Single instance: Windows mutex `Local\app.zapzap.desktop.single`; a
+   second instance exits immediately.
+2. The loopback server starts BEFORE any webview exists (the UI is served
+   by the same server, and a UI that boots before the server returns
+   broken pages).
+3. `create_shell`: rail + welcome webviews.
+4. Accounts: the first account opens right away (or "Account 1" is
+   created on a virgin install with no config). Every other account
+   creates its webview lazily on first open.
+5. Tray icon and menu.
 
-## Flujo de un mensaje saliente (`/api/message`)
+## Shells and visibility model
 
-1. Auth (X-API-Key/Bearer) + rate limit + body limit.
-2. `resolve_account_id` (parámetro `account` > primera habilitada).
-3. `PageBridge::send_message(phone, text)`:
-   - normaliza E.164, navega `https://web.whatsapp.com/send?phone=<digits>
-     [&text=<enc>]` (prefill solo ≤500 chars; sin prefill → inyección in-page),
-   - espera composer visible (≤15 s),
-   - `sendCurrent`: pegado resilient (Lexical-aware) + Enter + fallback botón,
-4. Resultado JSON (o `ApiError` HTTP tipado).
+- One Tauri window (`main`, feature `unstable`) hosts several child
+  webviews. The ACTIVE content webview sits next to the rail at
+  `(RAIL_WIDTH, 0)` at full size; every other content webview is parked
+  outside the client area (x = -24000 logical) AT FULL SIZE.
+- Why full-size parking: a webview born hidden (or tiny) never paints
+  (WebView2 composition pipeline), and shrinking parked webviews would
+  force WhatsApp to re-render on every switch. Position-only moves keep
+  switching instant (measured under 350 ms full repaint, switches feel
+  immediate).
+- A geometry watchdog re-aligns every webview every 2 s (plus resize and
+  scale events) so the four corners always hug the client area after any
+  DPI or resize dance.
+- The drawer is created closed and lazy. Each open DESTROYS and re-opens
+  it so it always renders above the account webviews (z-order) with
+  fresh state. Closing parks it with the same geometry watchdog path
+  (instant).
 
-## Seguridad
+## Automation flow (host to page and back)
 
-- Clave generada aleatoria al primer arranque; toda escritura de config
-  queda en memoria limpiada de valores inválidos.
-- API **off por defecto**. `exposeNetwork` false → bind loopback.
-- Webhook solo URLs http(s); firma HMAC si hay secret; nunca se envía la
-  clave de API.
-- Sin nsis `perMachine`: instalador `currentUser` (sin admin).
+1. Commands: the host evaluates guarded bridge expressions
+   `JSON.stringify(function(){ try { if (!window.__zapdudeApiV1 || typeof
+   ... !== 'function') return null; ... } catch ... })`; results come
+   back via `eval_with_callback`.
+2. Degrade, never crash: a missing bridge or moved WhatsApp markup
+   becomes a structured API error (`bridge_unavailable`), never a panic.
+3. Notification hook: the bridge replaces `window.Notification` and
+   hooks page mutations (chat list observer) to surface new message
+   events, each tagged with the account id that produced it.
+4. Beacon fallback: when the sync eval path dies, the page mirrors
+   pending responses into `location.hash = #__zapdude=<payload>` and the
+   host poller consumes them.
+5. Events: ring buffer of 200 (polled `GET /api/events?since=`),
+   broadcast SSE (keep alive 15 s), optional HMAC-SHA256 signed webhook
+   (`X-Zapdude-Signature: sha256=...`) delivered with `ureq` v3.
+
+## Multi account model
+
+- Each account runs its own WebView2 profile at
+  `%APPDATA%\app.zapzap.desktop\webview\<account-id>` so sessions,
+  cookies and storage never mix.
+- Deleting an account removes its webview AND wipes its profile folder
+  (best effort); the shell falls back to the next account or the
+  welcome screen (the welcome screen is the only place with an explicit
+  "Add account" button; nothing auto-creates empty accounts).
+- Renames are metadata only: ids are stable forever.
+
+## Tray and window behavior
+
+- Closing the main window hides it (app stays alive in the tray).
+- Tray menu rebuilds on account add/remove/rename so entries are always
+  current; left click on the tray icon shows and focuses the main window.
+- "Quit Zapdude" stops the loopback server first, then exits.
+
+## Security posture
+
+- API listens on 127.0.0.1 by default. `exposeNetwork` (LAN) is
+  available but off by default and considered a footgun.
+- Auth is `X-API-Key` or Bearer; rate limit 60 requests/min; bodies
+  capped at 1 MB; webhooks signed HMAC-SHA256 with the API key secret.
+- No telemetry, no third-party calls, no global listeners.
+
+## Testing and build
+
+- `cargo test`: unit tests for the API stack (14 green as of this
+  writing). The webview shell is verified manually with real window
+  captures (PrintWindow + PW_RENDERFULLCONTENT, see
+  docs/SESSION-STATUS.md).
+- Windows build: `tools\tauri.exe build --bundles nsis` or
+  `cargo install tauri-cli --locked` and `cargo tauri build --bundles nsis`.
+- Debug bisection: env var `ZAPDUKE_WEBVIEW_OPTS` toggles webview options
+  (UA, scripts, data dir, args, permissions) to isolate the cause when
+  WebView2 misbehaves.

@@ -249,7 +249,7 @@ fn require_api_enabled(state: &ApiState) -> Result<(), ApiError> {
         Ok(())
     } else {
         Err(ApiError::unavailable(
-            "API is disabled — enable it in Zapdude settings",
+            "API is disabled - enable it in Zapdude settings",
         ))
     }
 }
@@ -449,7 +449,7 @@ async fn post_prefs(State(state): State<ApiState>, Json(body): Json<PrefsBody>) 
     }
     // Re-apply the theme everywhere: rail + welcome reload with the fresh
     // preference (the drawer applied it locally already). This is what
-    // keeps the shell UNIFORM — pages that only read prefs at load would
+    // keeps the shell UNIFORM - pages that only read prefs at load would
     // otherwise mix light/dark after a toggle.
     if let Some(app_handle) = crate::APP_HANDLE.get() {
         crate::window::reload_shell_pages(app_handle);
@@ -461,7 +461,7 @@ async fn post_prefs(State(state): State<ApiState>, Json(body): Json<PrefsBody>) 
     }))
 }
 
-/// Rename an account (label only — ids are stable identities).
+/// Rename an account (label only - ids are stable identities).
 async fn rename_account_http(
     State(state): State<ApiState>,
     Path(id): Path<String>,
@@ -602,7 +602,7 @@ async fn list_accounts() -> (StatusCode, Json<Value>) {
     };
     let active = crate::window::active_content();
     let accounts = state_settings.current_accounts();
-    // Background refresh for anything stale — the response NEVER waits.
+    // Background refresh for anything stale - the response NEVER waits.
     for account in &accounts {
         if cached_session_state(&account.id).is_none() {
             spawn_session_state_refresh(account.id.clone());
@@ -626,8 +626,8 @@ async fn list_accounts() -> (StatusCode, Json<Value>) {
 }
 
 /// Create an account the easy way: no body required, ids are generated
-/// (`account-N` / `Cuenta N`). The new account's WhatsApp Web opens right
-/// away so the QR is immediately on screen.
+/// (`account-N`, label `Account N`). The new account's WhatsApp Web opens
+/// right away so the QR is immediately on screen.
 async fn add_account_http(State(state): State<ApiState>) -> (StatusCode, Json<Value>) {
     let mut accounts = state.settings.current_accounts();
     let mut n = accounts.len() + 1;
@@ -636,7 +636,7 @@ async fn add_account_http(State(state): State<ApiState>) -> (StatusCode, Json<Va
         n += 1;
         id = format!("account-{n}");
     }
-    let label = format!("Cuenta {n}");
+    let label = format!("Account {n}");
     let account = AccountConfig {
         id: id.clone(),
         label: label.clone(),

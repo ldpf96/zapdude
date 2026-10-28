@@ -159,7 +159,7 @@ impl Default for ConfigFile {
         Self {
             api: ApiConfig::default(),
             // VIRGIN installs start with NO accounts: the shell auto-opens
-            // a fresh "Cuenta 1" (account-1) with its QR. The legacy
+            // a fresh "Account 1" (account-1) with its QR. The legacy
             // "default" account name from other clients' configs is never
             // recreated.
             accounts: vec![],
@@ -349,7 +349,7 @@ mod tests {
     #[test]
     fn default_config_has_disabled_api_and_no_accounts() {
         // Virgin installs: API closed, ZERO accounts (the shell auto-creates
-        // a fresh "Cuenta 1" on the next open — never a legacy "default").
+        // a fresh "Account 1" on the next open (never a legacy "default").
         let config = ConfigFile::default();
         assert!(!config.api.enabled);
         assert_eq!(config.api.port, DEFAULT_API_PORT);

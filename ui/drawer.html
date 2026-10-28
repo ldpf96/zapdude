@@ -2,7 +2,7 @@
 <html lang="es" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
-  <title>Opciones — Zapdude</title>
+  <title>Options - Zapdude</title>
   <style>
     :root {
       --panel: #0c1713;
@@ -185,92 +185,92 @@
     <div class="mark"><svg><use href="#i-bolt"/></svg></div>
     <div>
       <h1>Zapdude</h1>
-      <div class="sub">Opciones y credenciales</div>
+      <div class="sub">Options and credentials</div>
     </div>
-    <button class="close" id="closeBtn" title="Cerrar">
+    <button class="close" id="closeBtn" title="Close">
       <svg style="width:15px;height:15px"><use href="#i-close"/></svg>
     </button>
   </header>
 
   <main>
-    <!-- ==================== PREFERENCIAS ==================== -->
+    <!-- ==================== PREFERENCES ==================== -->
     <div class="section">
       <div class="title">
-        <svg><use href="#i-gear"/></svg> Preferencias
+        <svg><use href="#i-gear"/></svg> Preferences
       </div>
       <div class="card">
         <div class="row">
           <div>
-            <label>Tema claro</label>
-            <div class="hint">Apariencia de la interfaz (los chats usan el tema de cada WhatsApp)</div>
+            <label>Light theme</label>
+            <div class="hint">Shell look only (every chat keeps WhatsApp's own theme)</div>
           </div>
           <label class="switch"><input type="checkbox" id="themeLight"><span class="track"></span></label>
         </div>
         <div class="row">
           <div>
-            <label>Iniciar con Windows</label>
-            <div class="hint">Zapdude arranca cuando enciendes el equipo</div>
+            <label>Start with Windows</label>
+            <div class="hint">Zapdude starts when you log in</div>
           </div>
           <label class="switch"><input type="checkbox" id="autostart"><span class="track"></span></label>
         </div>
         <div class="row">
           <div>
-            <label>Iniciar minimizado</label>
-            <div class="hint">Arranca oculto en la bandeja, sin ventana</div>
+            <label>Start minimized</label>
+            <div class="hint">Starts hidden in the tray, no window</div>
           </div>
           <label class="switch"><input type="checkbox" id="startMinimized"><span class="track"></span></label>
         </div>
       </div>
     </div>
 
-    <!-- ==================== CUENTAS ==================== -->
+    <!-- ==================== ACCOUNTS ==================== -->
     <div class="section">
       <div class="title">
-        <svg><use href="#i-users"/></svg> Cuentas
+        <svg><use href="#i-users"/></svg> Accounts
       </div>
       <div class="card" id="accountsCard">
-        <p class="desc">Ponle el nombre que quieras a cada cuenta (se ve en el menú y en la API). Clic derecho sobre el avatar la elimina.</p>
+        <p class="desc">Name each account whatever you like (the name shows in the tray menu and in the API). Right click the avatar to arm deletion.</p>
         <div id="accountsList"></div>
-        <p class="desc" id="noAccounts" style="margin: 0; display: none;">Todavía no hay cuentas.</p>
+        <p class="desc" id="noAccounts" style="margin: 0; display: none;">No accounts yet.</p>
       </div>
     </div>
 
     <!-- ==================== API ==================== -->
     <div class="section">
       <div class="title">
-        <svg><use href="#i-api"/></svg> Configuración API
+        <svg><use href="#i-api"/></svg> API settings
       </div>
       <div class="card">
-        <p class="desc">Permite que personas o agentes de IA controlen tus cuentas de WhatsApp desde la propia máquina. Solo accesible desde tu equipo (127.0.0.1).</p>
+        <p class="desc">Lets people or AI agents drive your WhatsApp accounts from this machine. Loopback only (127.0.0.1).</p>
         <div class="row">
           <div>
-            <label>Habilitar API</label>
+            <label>Enable API</label>
             <div class="hint">http://127.0.0.1:<span id="portEcho">29977</span>/api</div>
           </div>
           <label class="switch"><input type="checkbox" id="enabled"><span class="track"></span></label>
         </div>
         <div class="row">
-          <div><label>Puerto</label></div>
+          <div><label>Port</label></div>
           <input type="number" id="port" min="1024" max="65535">
         </div>
         <div class="row">
-          <div><label>Clave de API</label><div class="hint">Encabezado <code>X-API-Key</code></div></div>
+          <div><label>API key</label><div class="hint">Header <code>X-API-Key</code></div></div>
           <input type="text" id="apiKey">
         </div>
         <div class="row">
-          <div><label>Webhook (URL)</label><div class="hint">Recibe los eventos en tu servidor</div></div>
-          <input type="text" id="webhookUrl" placeholder="https://…">
+          <div><label>Webhook (URL)</label><div class="hint">Where events get delivered</div></div>
+          <input type="text" id="webhookUrl" placeholder="https://...">
         </div>
         <div class="row">
-          <div><label>Secreto del webhook</label><div class="hint">Firma HMAC-SHA256</div></div>
+          <div><label>Webhook secret</label><div class="hint">HMAC-SHA256 signature</div></div>
           <input type="text" id="webhookSecret">
         </div>
         <div class="row">
-          <div><label>Estado</label></div>
-          <span class="ok-badge ok-off" id="apiBadge">Desactivada</span>
+          <div><label>Status</label></div>
+          <span class="ok-badge ok-off" id="apiBadge">Disabled</span>
         </div>
         <div style="padding-top: 12px;">
-          <button class="btn" id="saveBtn">Guardar configuración</button>
+          <button class="btn" id="saveBtn">Save settings</button>
         </div>
       </div>
     </div>
@@ -278,35 +278,38 @@
     <!-- ==================== AI AGENT ==================== -->
     <div class="section">
       <div class="title">
-        <svg><use href="#i-bot"/></svg> Agente de IA
+        <svg><use href="#i-bot"/></svg> AI agent
       </div>
       <div class="card">
-        <p class="desc">El agente usa la API local para leer chats, abrir conversaciones y enviar mensajes por cualquiera de tus cuentas. Endpoints:</p>
+        <p class="desc">The agent uses the local API to read chats, open conversations and send messages from any of your accounts. Endpoints:</p>
         <div class="endpoint"><b>GET</b> /api/status?account=&lt;id&gt;</div>
         <div class="endpoint"><b>GET</b> /api/chats?limit=20&amp;account=&lt;id&gt;</div>
-        <div class="endpoint"><b>POST</b> /api/message — {"account","phone","message"}</div>
-        <div class="endpoint"><b>POST</b> /api/open-chat — {"account","phone","text?"}</div>
-        <p class="desc" style="margin:10px 0 0;">Todas las peticiones requieren <code>X-API-Key</code>. Los eventos llegan etiquetados con la cuenta que los originó.</p>
+        <div class="endpoint"><b>POST</b> /api/message - {"account","phone","message"}</div>
+        <div class="endpoint"><b>POST</b> /api/open-chat - {"account","phone","text?"}</div>
+        <p class="desc" style="margin:10px 0 0;">Every request needs <code>X-API-Key</code>. Events arrive tagged with the account they came from.</p>
       </div>
     </div>
 
     <!-- ==================== ABOUT ==================== -->
     <div class="section">
       <div class="title">
-        <svg><use href="#i-heart"/></svg> Acerca de
+        <svg><use href="#i-heart"/></svg> About
       </div>
       <div class="card">
         <h3>Zapdude <span id="ver" style="color:var(--muted);font-weight:500;"></span></h3>
-        <p class="desc">Cliente de escritorio de WhatsApp Web multi-cuenta con una API local para automatización, escrito en Rust con Tauri 2 y WebView2.</p>
-        <p class="desc">Licencia <b>AGPL-3.0</b> — proyecto original de <b>ldpf96</b>
-          (<a href="https://github.com/ldpf96" target="_blank">github.com/ldpf96</a>),
-          con su propio código escrito desde cero. La <i>idea</i> está inspirada en
-          <a href="https://github.com/rafatosta/zapzap" target="_blank">ZapZap</a>
-          de Rafael Tosta, a quien le reconocemos la chispa original. No se usa
-          código de ZapZap.</p>
-        <p class="desc">No es un producto oficial de WhatsApp ni de Meta, ni está
-          afiliado a ellos.</p>
-        <p class="mono">https://github.com/ldpf96</p>
+        <p class="desc">Multi account WhatsApp Web desktop client with a local automation API, written in Rust with Tauri 2 and WebView2.</p>
+        <p class="desc">License <b>AGPL-3.0</b>. An original project by <b>ldpf96</b>
+          (<a href="https://github.com/ldpf96" target="_blank">github.com/ldpf96</a>).</p>
+        <p class="desc">The starting point was <a href="https://github.com/rafatosta/zapzap" target="_blank">ZapZap</a>
+          by <b>Rafael Tosta</b>: his design and behavior were the reference for the
+          first releases, and the implementation then grew into something
+          substantially different on its own stack. ZapZap's code does not ship
+          here. Credit where credit is due.</p>
+        <p class="desc">Built with AI assistance: <b>OpenCode</b> + the <b>GLM-5.3</b> model
+          (by Z.ai), vibe coding style, everything verified on real hardware before
+          shipping.</p>
+        <p class="desc">Not an official WhatsApp product; not affiliated with WhatsApp or Meta.</p>
+        <p class="mono">https://github.com/ldpf96/zapdude</p>
       </div>
     </div>
   </main>
@@ -337,18 +340,18 @@
 
     function updateBadge(enabled) {
       const b = $("apiBadge");
-      b.textContent = enabled ? "Activa" : "Desactivada";
+      b.textContent = enabled ? "Active" : "Disabled";
       b.className = "ok-badge " + (enabled ? "ok-on" : "ok-off");
     }
 
-    // ---- Preferencias (aplican al instante, sin botón) ----
+    // ---- Preferences (apply instantly, no save button) ----
     async function loadPrefs() {
       try {
         const prefs = await api("/api/prefs");
         applyTheme(prefs.theme);
         $("autostart").checked = prefs.autostart;
         $("startMinimized").checked = prefs.start_minimized;
-      } catch (e) { toast("No se pudieron leer las preferencias"); }
+      } catch (e) { toast("Could not read preferences"); }
     }
 
     async function savePrefs() {
@@ -360,7 +363,7 @@
         })});
         applyTheme(prefs.theme);
         return prefs;
-      } catch (e) { toast("No se pudieron guardar las preferencias"); return null; }
+      } catch (e) { toast("Could not save preferences"); return null; }
     }
 
     // ---- Cuentas (renombrar) ----
@@ -370,7 +373,7 @@
 
     // Rows live across refreshes (keyed by account id). The list used to be
     // rebuilt from scratch every 5s, which RESET the input you were typing
-    // in and stole its focus — you could not finish a name. Now a refresh
+    // in and stole its focus, so you could not finish a name. Now a refresh
     // never touches an input the user is editing.
     const accountRows = new Map();
 
@@ -394,8 +397,8 @@
           entry.label = label;
           input.value = label;
           input.dataset.dirty = "";
-          toast("Cuenta renombrada");
-        } catch (e) { toast("No se pudo renombrar"); }
+          toast("Account renamed");
+        } catch (e) { toast("Rename failed"); }
       };
       row.querySelector(".save").onclick = commit;
       // Mark edits so refreshes leave THIS input alone until saved.
@@ -442,7 +445,7 @@
         $("portEcho").textContent = cfg.port;
         updateBadge(cfg.enabled);
       } catch (e) {
-        toast("No se pudo leer la configuración");
+        toast("Could not read settings");
       }
     }
 
@@ -461,7 +464,7 @@
           webhook_url: $("webhookUrl").value.trim(),
           webhook_secret: $("webhookSecret").value.trim(),
         })});
-        toast("Configuración guardada");
+        toast("Settings saved");
         setTimeout(load, 1200);
       } catch (e) { toast("Error: " + e.message); }
     };
@@ -473,7 +476,7 @@
 
     (async () => {
       await Promise.all([loadPrefs(), load(), refreshAccounts()]);
-      // Refresh the accounts list while the drawer is open — INCREMENTALLY:
+      // Refresh the accounts list while the drawer is open, INCREMENTALLY:
       // a row being edited keeps its text and focus (see refreshAccounts).
       setInterval(refreshAccounts, 5000);
     })();

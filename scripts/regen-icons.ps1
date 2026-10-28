@@ -1,4 +1,4 @@
-# Zapdude icon consistency pass (green squircle + BLACK bolt) — fixes the
+# Zapdude icon consistency pass (green squircle + BLACK bolt) - fixes the
 # stale gray-teal/white-bolt icon.exe embed:
 #   A) rebuild icons/icon.ico byte-for-byte from the APPROVED pngs
 #   B) re-render icons/icon.png (512) + Square*Logo + StoreLogo in style
@@ -44,7 +44,7 @@ function New-ZapdudeIcon {
     $g.FillPath($glossBrush, $gloss)
     $g.ResetClip()
 
-    # Black bolt — rail.html #i-bolt path converted to GDI+
+    # Black bolt - rail.html #i-bolt path converted to GDI+
     $scale = ($Size * 0.60) / 24.0
     $ox = [float](($Size - 24.0 * $scale) / 2.0)
     $oy = [float](($Size - 24.0 * $scale) / 2.0)

@@ -1,34 +1,37 @@
-# Zapdude 1.0.0 — primer release público
+# Zapdude 1.0.0 - first public release
 
-Cliente de escritorio de **WhatsApp Web multi-cuenta** para Windows, escrito
-en **Rust** (Tauri 2 + WebView2) por **ldpf96**. Licencia **AGPL-3.0**.
+Multi account WhatsApp Web desktop client for Windows, written in Rust
+(Tauri 2 + WebView2) by ldpf96. License AGPL-3.0.
 
-## Instalación
+## Install
 
-1. Descarga `Zapdude_1.0.0_x64-setup.exe` (~2.81 MiB) de esta release.
-2. Ejecuta el instalador (no requiere admin; instalador por usuario).
-3. La app abre tu primera cuenta y su QR directamente. Escanea WhatsApp en
-   tu teléfono → Dispositivos vinculados → Vincular un dispositivo.
+1. Download `Zapdude_1.0.0_x64-setup.exe` (about 2.81 MiB) from this
+   release.
+2. Run the installer (current user mode, no admin needed).
+3. The app opens your first account and its QR right away. On your
+   phone: WhatsApp, Linked devices, Link a device, then scan.
 
-## Lo que incluye
+## What is inside
 
-- Todas tus cuentas de WhatsApp en una sola ventana con rail lateral.
-- Cambio de cuenta instantáneo (las cuentas inactivas quedan "aparcadas"
-  a tamaño completo fuera de la ventana: WhatsApp no se re-renderiza).
-- Perfiles WebView2 aislados por cuenta (las sesiones no se mezclan).
-- Opciones a pantalla completa: tema claro/oscuro, iniciar con Windows,
-  iniciar minimizado, renombrar cuentas, configuración de la API.
-- Bandeja del sistema con "Mostrar <cuenta>", ocultar todo y salir.
-- Llamadas de WhatsApp Web (identidad Chrome estable + permisos
-  preaprobados de micrófono/cámara/pantalla).
-- API local (loopback) para personas y agentes de IA: REST + SSE + webhook
-  con firma HMAC (`X-Zapdude-Signature`). Desactivada por defecto.
+- All your WhatsApp accounts in one window with a left rail.
+- Instant account switching (idle accounts stay parked outside the
+  window at full size, so WhatsApp does not re-render).
+- Isolated WebView2 profiles per account (sessions never mix).
+- Full screen options: light/dark theme, start with Windows, start
+  minimized, account renaming, API settings.
+- System tray with "Show <account>", hide everything and quit.
+- WhatsApp Web calls (stable Chrome identity and pre-approved
+  permissions for microphone, camera and screen sharing).
+- Local API (loopback) for people and AI agents: REST + SSE + webhook
+  with HMAC signature (`X-Zapdude-Signature`). Disabled by default.
 
-## Notas
+## Notes
 
-- Requiere Windows 10/11 con WebView2 Runtime (incluido de fábrica en
-  Windows 11).
-- Proyecto original de [ldpf96](https://github.com/ldpf96), inspirado en el
-  concepto de [ZapZap](https://github.com/rafatosta/zapzap) (Rafael Tosta)
-  con código 100% original. No está afiliado a WhatsApp ni a Meta.
-- Código fuente: https://github.com/ldpf96/zapdude (AGPL-3.0).
+- Needs Windows 10/11 with the WebView2 Runtime (bundled with Windows
+  11).
+- Original project by [ldpf96](https://github.com/ldpf96). The design
+  and behavior reference was ZapZap by Rafael Tosta; no ZapZap code
+  ships here. Development credits: OpenCode + GLM-5.3 (by Z.ai), vibe
+  coding, verified on real hardware. Not affiliated with WhatsApp or
+  Meta.
+- Source: https://github.com/ldpf96/zapdude (AGPL-3.0).

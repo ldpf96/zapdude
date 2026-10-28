@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es" data-theme="dark">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <title>Zapdude</title>
@@ -70,7 +70,7 @@
     .rail-scroll {
       flex: 1; overflow-y: auto; width: 100%;
       display: flex; flex-direction: column; align-items: center;
-      gap: 12px;                       /* the ONLY gap: accounts/…/+ */
+      gap: 12px;                       /* the only gap: accounts, + */
       padding: 12px 0 14px;
       scrollbar-width: none;
       mask-image: linear-gradient(180deg, transparent 0, #000 14px, #000 calc(100% - 16px), transparent 100%);
@@ -185,11 +185,11 @@
     </defs>
   </svg>
 
-  <div class="offline" id="offline">Reconectando…</div>
+  <div class="offline" id="offline">Reconnecting...</div>
 
   <div class="logo" id="logo">
     <svg class="icon"><use href="#i-bolt"/></svg>
-    <span class="tooltip">Opciones Zapdude</span>
+    <span class="tooltip">Zapdude options</span>
   </div>
 
   <div class="divider" aria-hidden="true"></div>
@@ -198,7 +198,7 @@
     <div id="rail"></div>
     <button class="add-btn" id="addBtn">
       <svg class="icon"><use href="#i-plus"/></svg>
-      <span class="tooltip">Agregar cuenta</span>
+      <span class="tooltip">Add account</span>
     </button>
   </div>
 
@@ -247,7 +247,7 @@
       updateMoreIndicator();
     }
 
-    // Theme follows the saved preference (checked on every poll — cheap).
+    // Theme follows the saved preference (checked on every poll, cheap).
     async function loadTheme() {
       try {
         const prefs = await api("/api/prefs");
@@ -275,7 +275,7 @@
         let el = rail.children[index];
         const isArmed = armedId === a.id;
         const state = a.session_state === "logged_in" ? "logged" : a.session_state === "scan_qr" ? "qr" : "detecting";
-        const stateLabel = a.session_state === "logged_in" ? "conectada" : a.session_state === "scan_qr" ? "esperando QR" : "cargando";
+        const stateLabel = a.session_state === "logged_in" ? "connected" : a.session_state === "scan_qr" ? "waiting for QR" : "loading";
         if (!el || el.dataset.id !== a.id) {
           el = document.createElement("div");
           el.dataset.id = a.id;
@@ -304,7 +304,7 @@
         el.querySelector("use").setAttribute("href", isArmed ? "#i-x" : "#i-bolt");
         el.querySelector(".dot").className = "dot " + state;
         const tip = el.querySelector(".tooltip");
-        tip.textContent = isArmed ? "Clic de nuevo para eliminar" : `${a.label} · ${stateLabel}`;
+        tip.textContent = isArmed ? "Click again to delete" : `${a.label} - ${stateLabel}`;
       });
     }
 

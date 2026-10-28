@@ -88,7 +88,7 @@ pub fn install(
             // (re-)installed from here: the page may load/reload several
             // times (QR refresh, reconnects), and a light idempotent eval
             // every DEFER_INSTALL_EVERY_TICKS keeps them present without
-            // touching the page-start injection (which must stay small —
+            // touching the page-start injection (which must stay small -
             // see `startup_scripts`). Each script is guarded by its OWN
             // flag and try/catch so one failure can never silence the
             // other (that is exactly how the banner hider got lost).

@@ -1,8 +1,8 @@
 //! Zapdude application shell: ONE window that hosts every webview.
 //!
 //! Layout (single-window design inspired by the client whose idea
-//! motivated this project — ZapZap by Rafael Tosta; the code is original):
-//!   - A narrow left rail (label `rail`) — the Zapdude logo, one circular
+//! motivated this project - ZapZap by Rafael Tosta; the code is original):
+//!   - A narrow left rail (label `rail`) - the Zapdude logo, one circular
 //!     avatar per account (click to switch), a "+" button to add an account
 //!     in one click, and settings/about buttons at the bottom.
 //!   - One WhatsApp Web webview per account (label `account-<id>`), each with
@@ -12,11 +12,11 @@
 //! Visibility model: the active content webview sits next to the rail;
 //! every other content webview is PARKED just outside the visible client
 //! area (still rendered, never `hide()`-d). WebView2 blanks webviews that
-//! are created hidden and shown later — parking keeps them alive and
+//! are created hidden and shown later - parking keeps them alive and
 //! paintable, so switching accounts never shows a gray page.
 //!
 //! The rail/welcome/settings pages are SERVED BY THE LOOPBACK API SERVER
-//! (same origin), so their `fetch` calls always work — no IPC, no CORS,
+//! (same origin), so their `fetch` calls always work - no IPC, no CORS,
 //! no file:// resolution problems. Multi-webview inside one window needs
 //! the Tauri `unstable` feature; webview creation happens from non-main
 //! threads (setup, async commands or spawned threads) so the WebView2
@@ -44,7 +44,7 @@ const WHATSAPP_URL: &str = "https://web.whatsapp.com";
 
 /// Renderer args. WARNING (empirical, WebView2 + wry 0.57): passing ANY
 /// `additional_browser_args` on child webviews combined with the Chrome
-/// user-agent breaks WebView2 composition — the page loads and JS runs but
+/// user-agent breaks WebView2 composition - the page loads and JS runs but
 /// the compositor renders a flat gray surface. The same flags applied by
 /// wry internally (no custom args) work fine, so we do NOT pass custom
 /// browser args in production; this hook remains for debugging only.
@@ -60,7 +60,7 @@ pub const RAIL_WIDTH: f64 = 76.0;
 
 /// X position where inactive content webviews park: FULL size, completely
 /// outside the visible client area. Parking by POSITION (never by size and
-/// never by hide()) keeps WhatsApp's layout warm — switching accounts is a
+/// never by hide()) keeps WhatsApp's layout warm - switching accounts is a
 /// position-only move, so there is no re-render and the switch is instant.
 const PARKED_X: f64 = -24000.0;
 
@@ -77,7 +77,7 @@ pub fn account_webview_label(account_id: &str) -> String {
 }
 
 /// Toggle the options screen (brand-logo click): a FULL-SCREEN panel over
-/// the content area with the API settings, agent docs and About — in the
+/// the content area with the API settings, agent docs and About - in the
 /// SAME window (no auxiliary window). Rebuilt on every open so it always
 /// renders on top and shows the current state.
 pub fn toggle_drawer(app: &AppHandle) -> tauri::Result<()> {
@@ -190,7 +190,7 @@ static POPUP_SEQ: AtomicU32 = AtomicU32::new(0);
 
 /// Open a POP-OUT window (WhatsApp call windows, media popups): a real
 /// native window the user can move anywhere, sharing the ACCOUNT's
-/// WebView2 environment (same session/cookies) — without this, WebView2
+/// WebView2 environment (same session/cookies) - without this, WebView2
 /// denies every window.open and WhatsApp shows "modify your browser to
 /// allow popups".
 #[cfg(windows)]
@@ -209,12 +209,12 @@ fn popup_window(
         .map(|size| (size.width.max(280.0), size.height.max(240.0)))
         .unwrap_or((480.0_f64, 640.0_f64));
     // The opener's environment already carries this account's user-data
-    // folder — sharing it is REQUIRED on Windows (a different environment
+    // folder - sharing it is REQUIRED on Windows (a different environment
     // with the same data folder fails to create) and is what gives the
     // popup the account's session.
     let environment = features.opener().environment.clone();
     let built = tauri::webview::WebviewWindowBuilder::new(&handle, &label, WebviewUrl::External(url))
-        .title("Zapdude — llamada")
+        .title("Zapdude call")
         .inner_size(width, height)
         .min_inner_size(280.0_f64, 240.0_f64)
         .resizable(true)
@@ -247,7 +247,7 @@ fn account_webview_builder(account: &crate::config::AccountConfig) -> WebviewBui
     let opts = std::env::var("ZAPDUKE_WEBVIEW_OPTS").unwrap_or_else(|_| "all".to_string());
     let has = |name: &str| {
         // 'args' is debug-only: custom browser args + the Chrome UA break
-        // WebView2 composition on child webviews (gray page) — see the
+        // WebView2 composition on child webviews (gray page) - see the
         // BROWSER_ARGS doc. Default ("all") never applies them.
         if name == "args" {
             return opts.split(',').any(|o| o.trim() == "args" || o.trim() == "argsbg" || o.trim() == "argsms" || o.trim() == "argsry");
@@ -370,7 +370,7 @@ fn relayout(window: &Window<Wry>) {
 }
 
 /// Create the shell window: rail webview + welcome backdrop, then show it
-/// (unless the user chose "start minimized" — then only the tray exists
+/// (unless the user chose "start minimized" - then only the tray exists
 /// until the user opens the window from the tray).
 /// The first account is opened right after by `auto_open_first_account`.
 pub fn create_shell(app: &AppHandle) -> tauri::Result<()> {
@@ -449,7 +449,7 @@ pub fn create_shell(app: &AppHandle) -> tauri::Result<()> {
 }
 
 /// The app opens STRAIGHT into the first account's WhatsApp
-/// Web (the QR if it is not logged in) — no welcome interstitial, no forms.
+/// Web (the QR if it is not logged in) - no welcome interstitial, no forms.
 /// If no account exists yet, the first one is created automatically.
 pub fn auto_open_first_account(app: &AppHandle) {
     let Some(shared) = crate::SHARED.get().cloned() else {
@@ -458,13 +458,13 @@ pub fn auto_open_first_account(app: &AppHandle) {
     let handle = app.clone();
     std::thread::spawn(move || {
         // A single branded-splash beat (the styled welcome) before the
-        // account takes over — no long blank interstitial.
+        // account takes over - no long blank interstitial.
         std::thread::sleep(std::time::Duration::from_millis(150));
         let mut accounts = shared.settings.current_accounts();
         if accounts.is_empty() {
             let account = crate::config::AccountConfig {
                 id: "account-1".to_string(),
-                label: "Cuenta 1".to_string(),
+                label: "Account 1".to_string(),
                 enabled: true,
             };
             accounts.push(account.clone());
@@ -494,7 +494,7 @@ pub fn show_content(app: &AppHandle, label: &str) -> tauri::Result<()> {
 }
 
 /// Create the WhatsApp Web webview of an account, installing the API bridge.
-/// The webview is born at FULL content size in the content slot — WebView2
+/// The webview is born at FULL content size in the content slot - WebView2
 /// only starts its composition pipeline for webviews that begin life at a
 /// real size (born-tiny webviews stay gray forever). `relayout` immediately
 /// parks it if it is not the active one. Does nothing if it already exists.
@@ -516,7 +516,7 @@ pub fn ensure_account_webview(
     let size = content_size(&window)?;
     // `add_child` dispatches to the main thread, so the registry may not see
     // a creation that is still queued. If the label reports "already exists"
-    // the webview is materializing — treat it as success instead of failing
+    // the webview is materializing - treat it as success instead of failing
     // the open flow (which would leave the welcome screen stuck on screen).
     // The creating path installs the bridge itself, so no double install.
     match window.add_child(
@@ -555,7 +555,7 @@ pub fn open_account_webview(
 
 /// After an account is hidden or removed: open the FIRST REMAINING account,
 /// or fall back to the branded welcome screen (which has an explicit
-/// "Agregar cuenta" button). Never auto-creates an empty account here —
+/// "Add account" button). Never auto-creates an empty account here -
 /// deleting the last one intentionally lands on the welcome screen.
 fn open_first_remaining_or_welcome(app: &AppHandle) {
     let Some(shared) = crate::SHARED.get() else {
@@ -575,7 +575,7 @@ fn open_first_remaining_or_welcome(app: &AppHandle) {
 }
 
 /// Return to a sensible view after an account is hidden: the first remaining
-/// account — or the welcome screen with its "Agregar cuenta" button (no
+/// account or the welcome screen with its "Add account" button (no
 /// auto-created empty account).
 pub fn hide_account_content(app: &AppHandle, _id: &str) -> tauri::Result<()> {
     open_first_remaining_or_welcome(app);
@@ -585,7 +585,7 @@ pub fn hide_account_content(app: &AppHandle, _id: &str) -> tauri::Result<()> {
 /// Close an account webview entirely (used when removing the account).
 /// If the removed account was on screen, fall through to the first remaining
 /// account, or to the welcome screen when none remains (no empty account is
-/// auto-created — the user asked for that explicitly). The WebView2 profile
+/// auto-created - the user asked for that explicitly). The WebView2 profile
 /// of the account is ALSO deleted: removing an account means a clean slate
 /// (no orphaned sessions on disk).
 pub fn close_account_webview(app: &AppHandle, id: &str) {
@@ -594,7 +594,7 @@ pub fn close_account_webview(app: &AppHandle, id: &str) {
     if let Some(webview) = app.get_webview(&label) {
         let _ = webview.close();
     }
-    // Best-effort profile wipe (ignores errors — e.g. WebView2 still
+    // Best-effort profile wipe (ignores errors - e.g. WebView2 still
     // flushing the folder).
     if let Some(shared) = crate::SHARED.get() {
         let profile = shared
@@ -611,7 +611,7 @@ pub fn close_account_webview(app: &AppHandle, id: &str) {
 
 /// Navigate ONLY the rail + welcome webviews to the (possibly new) base
 /// URL. Used after preference changes (theme) so every shell page shows
-/// the same look instantly — no half-dark/half-light state.
+/// the same look instantly - no half-dark/half-light state.
 pub fn reload_shell_pages(app: &AppHandle) {
     let base = ui_base_url();
     let Some(window) = app.get_window("main") else {
@@ -651,7 +651,7 @@ pub fn reload_shell_ui(app: &AppHandle) {
 }
 
 /// Build the tray menu for the CURRENT account list (rebuilt on changes so
-/// "Mostrar <cuenta>" never goes stale).
+/// "Show <account>" never goes stale).
 fn build_tray_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     let shared = crate::SHARED.get().expect("shared globals");
     let accounts = shared.settings.current_accounts();
@@ -660,15 +660,15 @@ fn build_tray_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
         let item = MenuItem::with_id(
             app,
             format!("show-{}", account.id),
-            format!("Mostrar {}", account.label),
+            format!("Show {}", account.label),
             true,
             None::<&str>,
         )?;
         item_pool.push(item);
     }
     let separator = PredefinedMenuItem::separator(app)?;
-    let hide_all = MenuItem::with_id(app, "hide-all", "Ocultar ventanas", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Salir de Zapdude", true, None::<&str>)?;
+    let hide_all = MenuItem::with_id(app, "hide-all", "Hide all windows", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit Zapdude", true, None::<&str>)?;
     let menu_items: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> = item_pool
         .iter()
         .map(|item| item as &dyn tauri::menu::IsMenuItem<tauri::Wry>)
@@ -679,8 +679,8 @@ fn build_tray_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     Menu::with_items(app, &menu_items)
 }
 
-/// Show + focus the main window (tray "Mostrar <cuenta>" must bring the
-/// window BACK even if the user closed it to the tray — showing the webview
+/// Show + focus the main window (tray "Show <account>" must bring the
+/// window BACK even if the user closed it to the tray - showing the webview
 /// alone does nothing while the window is hidden).
 pub fn show_main_window(app: &AppHandle) {
     if let Some(window) = app.get_window("main") {

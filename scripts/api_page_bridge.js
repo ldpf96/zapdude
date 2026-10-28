@@ -355,7 +355,7 @@
         };
 
         // ------------------------------------------------------------------
-        // Incoming event sources — DISABLED for now.
+        // Incoming event sources - DISABLED for now.
         //
         // Empirically (WebView2 child webviews), hooking window.Notification
         // or installing DOM observers at boot kills WhatsApp Web's own JS

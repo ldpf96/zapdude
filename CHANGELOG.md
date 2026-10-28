@@ -1,89 +1,114 @@
 # Changelog
 
-Todos los cambios notables de este proyecto se documentan aquí.
-El formato sigue de cerca Keep a Changelog; versionado SemVer.
+Notable changes to this project are documented here. The format follows
+Keep a Changelog; versioning is SemVer.
+
+## [1.1.0] - 2026-10-28
+
+### Changed
+- The whole project (UI, docs, installer, tray, code comments) is now in
+  English.
+- Honest origin story on the record: the design reference was ZapZap by
+  Rafael Tosta, early versions intentionally tried to feel like it, and
+  the implementation grew into something substantially different. NOTICE
+  and README tell the story, plus the development stack: OpenCode agent
+  harness + GLM-5.3 model (by Z.ai), vibe coding style, author verified
+  everything on real hardware.
+- Installer ships English only.
+
+### Fixed
+- (from 1.0.0 line carried forward) App icon: the icon.ico embedded in the
+  exe was rebuilt byte for byte from the approved green squircle frames so
+  the taskbar, title bar, tray and installer all show the green with the
+  black bolt (Windows icon caches may need one Explorer restart).
 
 ## [1.0.0] - 2026-10-28
 
 ### Added
-- Cliente de escritorio de WhatsApp Web multi-cuenta con API local de
-  automatización, escrito en Rust (Tauri 2 + WebView2). Proyecto original
-  de ldpf96, inspirado en la idea del cliente ZapZap de Rafael Tosta.
-- **Shell v3 de ventana única** (feature `unstable`): rail de cuentas (76 px),
-  un webview de WhatsApp Web por cuenta con perfil WebView2 aislado
-  (`webview/<id>`), backdrop de bienvenida y panel de opciones a pantalla
-  completa en la misma ventana (logo del rail = toggle).
-- **Multi-cuenta vital**: "+" agrega cuenta sin formularios y abre su QR al
-  instante; cambio de cuenta instantáneo por parking position-only
-  (parqueo a tamaño completo fuera de la ventana, sin re-render: <350 ms);
-  carga diferida — cada cuenta carga WhatsApp Web la primera vez que se abre.
-- **Rail premium**: logo Zapdude, avatares con el rayito (sin letras/números),
-  anillo verde en la activa, dot de estado (conectada/QR/cargando),
-  divisorias curvas, X roja visible al armar el borrado con clic derecho,
-  actualización incremental del DOM (sin parpadeo). Sin menú contextual del
-  navegador en la UI.
-- **Bandeja del sistema**: "Mostrar <cuenta>" por cuenta, "Ocultar
-  ventanas", "Salir de Zapdude". Cerrar la ventana oculta a la bandeja.
-  Instancia única por mutex.
-- **Identidad Chrome estable** (UA 156 + `client_hints_fix.js`) y permisos
-  preaprobados de micrófono/cámara/pantalla/notificaciones/portapapeles
-  para llamadas de WhatsApp Web.
-- **API local para humanos y agentes**: REST (`healthz`, `config`,
-  `accounts` CRUD + open/hide, `status`, `open-chat`, `message`, `chats`,
-  `events`, `webhook`) + SSE (`/events/stream`), loopback por defecto,
-  `X-API-Key`/Bearer, 60 rpm, cuerpo ≤ 1 MB, eventos etiquetados por cuenta
-  y webhook HMAC-SHA256. La UI (rail/opciones/bienvenida) la sirve el propio
-  servidor (mismo origen, sin IPC).
-- **Limpieza automática de promos de WhatsApp**: banner "Download WhatsApp
-  for Windows" del landing y tarjeta de descarga del panel vacío, con
-  zonas protegidas (jamás toca el QR, la lista de chats ni el compositor).
-- Puente de página residente (`api_page_bridge.js`) con transporte primario
-  `eval_with_callback` y beacon de hash URL `#__zapdude=` como reserva,
-  hilo poller de 30 ms por cuenta; scripts diferidos con marca de
-  idempotencia por script.
-- Borrar la última cuenta muestra la pantalla de bienvenida con el botón
-  "Agregar cuenta" (no auto-crea cuentas vacías); el arranque sí abre la
-  primera cuenta (o crea "Cuenta 1") como el cliente original que inspiró la idea.
-- Configuración persistente en `%APPDATA%\app.zapzap.desktop\config.json`
-  (camelCase, tolerante a BOM) con `api` y `accounts` sanitizados.
-- Instalador NSIS (`tauri build --bundles nsis`, `installMode: currentUser`,
-  selector de idioma, hook que borra los datos al desinstalar).
-- Licencia AGPL-3.0 y `NOTICE.md` (autor ldpf96; credita la *idea* original
-  de ZapZap sin reusar código).
+- Multi account WhatsApp Web desktop client written in Rust (Tauri 2 +
+  WebView2). Original project by ldpf96; the design reference was ZapZap
+  by Rafael Tosta.
+- Single window shell v3 (feature `unstable`): an account rail (76 px),
+  one WhatsApp Web webview per account with an isolated WebView2 profile
+  (`webview/<id>`), a welcome backdrop and a full screen options panel in
+  the same window (the rail logo toggles it).
+- Multi account flows: "+" adds an account with no forms and opens its QR
+  right away; instant account switching via position-only parking
+  (parked at full size outside the window, no re-render, under 350 ms);
+  lazy loading so every account creates its webview on first open.
+- Premium rail: Zapdude logo, avatars with the bolt (no letters or
+  numbers), green ring on the active one, state dot (connected/QR/
+  loading), curved dividers, a visible red X when right click arms
+  deletion, incremental DOM updates (no flicker). No browser context
+  menu on the shell UI.
+- System tray: "Show <account>" per account, "Hide all windows", "Quit
+  Zapdude". Closing the window hides it to the tray. Single instance by
+  mutex.
+- Stable Chrome identity (UA 156 + `client_hints_fix.js`) and
+  pre-approved permissions for microphone, camera, screen, notifications
+  and clipboard so WhatsApp Web calls work.
+- Local API for people and agents: REST (`healthz`, `config`, accounts
+  CRUD + open/hide, `status`, `open-chat`, `message`, `chats`, `events`,
+  `webhook`) + SSE (`/events/stream`), loopback by default,
+  `X-API-Key`/Bearer auth, 60 rpm, 1 MB body cap, events tagged per
+  account and HMAC-SHA256 signed webhooks (`X-Zapdude-Signature`). The
+  shell UI (rail/options/welcome) is served by the API server itself
+  (same origin, no IPC).
+- Automatic WhatsApp promo cleanup: the "Download WhatsApp for Windows"
+  banner on the landing and the download card in the empty chat panel,
+  with protected zones (never touches the QR, the chat list or the
+  composer).
+- Resident page bridge (`api_page_bridge.js`) with
+  `eval_with_callback` primary transport and a URL hash beacon
+  (`#__zapdude=`) fallback, a 30 ms poller thread per account; deferred
+  installs with a per-script idempotency flag.
+- Deleting the last account shows the welcome screen with an explicit
+  "Add account" button (no empty accounts are auto-created); on a virgin
+  install the shell auto-creates "Account 1" like the reference client.
+- Persistent config at `%APPDATA%\app.zapzap.desktop\config.json`
+  (camelCase, BOM tolerant) with a sanitized `api` block, `prefs` and
+  `accounts`.
+- Preferences: light/dark theme (shell only), start with Windows (HKCU
+  Run key via winreg), start minimized (lives in the tray).
+- Call pop-outs: `on_new_window` creates a real window that shares the
+  opener's WebView2 environment (same session/cookies).
+- Symmetric rail spacing with a "more below" indicator and wheel
+  scrolling; account renaming (tray, rail and API see the new name).
+- NSIS installer (`tauri build --bundles nsis`, `installMode:
+  currentUser`, uninstall hook that wipes the data folder).
+- License AGPL-3.0 with a NOTICE telling the origin story (design
+  reference ZapZap by Rafael Tosta, authored by ldpf96, AI assisted with
+  OpenCode + GLM-5.3).
 
 ### Fixed
-- Página gris de WebView2 (2 causas): webviews nacidos ocultos o enanos no
-  arrancan su pipeline de composición (nacen a tamaño completo y se
-  parquean por posición), y el script viejo de promos ocultaba contenedores
-  enteros (reescrito smallest-node-only con colapso supervisado).
-- Inyección de scripts: solo el mínimo en document-start; el bridge y el
-  hider van diferidos vía poller (un eval grande en document-start rompe el
-  render de WebView2).
-- `ExecuteScript` de WebView2 llega doble-codificado cuando el valor es
-  String: en `evaluate` se desenrolla una vez más (los datos ya no caen a
-  defaults "vacíos").
-- Anidadas en axum 0.8: rutas planas `/api/...` (`.nest("/")` no existe y
-  paniqueaba en runtime).
-- `session_state` en 3 estados honestos: `detecting` / `scan_qr` /
-  `logged_in`, con caché de 2.5 s para que el rail responda al instante.
-- El servidor API arranca ANTES que los webviews (adiós error de Edge "no
-  se puede alcanzar esta página") y el bind reintentа 40×250 ms (el
-  restart tras cambiar el puerto chocaba con el error 10048).
-- Botones promo cuyo `textContent` arrastra el título del icono SVG
-  ("Downloadic-download"): `cleanText()` elimina tokens `ic-*` antes de los
-  patrones exactos; el instalador diferido usa una marca por script para
-  que un fallo del bridge no silencie al limpiador de banners.
-- **Icono de la app** (Round 7): el `icon.ico` incrustado en el exe seguía
-  siendo la versión vieja (teal oscuro con rayo blanco); reconstruido
-  byte a byte desde los PNG aprobados (verde con rayo negro) en 16/24/
-  32/48/64/128/256; `icon.png` (512) y las mosaicos UWP re-renderizados
-  con el mismo diseño (scripts/regen-icons.ps1). Verificado leyendo el
-  HICON real de la ventana en ejecución.
-- **Panel de opciones lento al cerrar** (Round 7): `toggle_drawer` no
-  realineaba en el cierre y esperaba al watchdog de geometría de 2 s;
-  ahora `relayout` corre en el mismo toggle (medido: 1 ms en estacionar).
-- **Renombrar cuentas borraba lo escrito** (Round 7): la lista del drawer
-  se reconstruía desde cero cada 5 s (reset del valor y robo del foco a
-  mitad de la escritura). Ahora el refresco es incremental por id, y jamás
-  toca un input enfocado o editado; fusiona cambios del servidor solo en
-  filas intactas.
+- WebView2 gray page (two chained causes): webviews born hidden or tiny
+  never start their composition pipeline (they are born at full size and
+  parked by position), and the old promo sweep hid whole containers
+  (rewritten smallest-node-only with supervised collapse).
+- Script injection: only the minimum runs at document-start; the bridge
+  and the hider install deferred through the beacon poller (one big
+  document-start eval reliably breaks WebView2 painting).
+- WebView2 `ExecuteScript` arrives double encoded when the value is a
+  String: `evaluate` unwraps one more level (data used to fall back to
+  defaults silently).
+- axum 0.8 nesting at root panics: flat `/api/...` routes.
+- `session_state` is honest with 3 states: `detecting` / `scan_qr` /
+  `logged_in`, with a 2.5 s cache so the rail answers instantly.
+- The API server starts BEFORE the webviews (no more Edge "can't reach
+  this page" on open) and the bind retries 40x250 ms (port changes used
+  to collide with error 10048).
+- Promo buttons whose `textContent` drags the SVG title ("Downloadic-
+  download"): `cleanText()` strips `ic-*` tokens before exact matching;
+  the deferred installer uses one flag per script so a bridge failure
+  never silences the banner cleaner again.
+- App icon: `icons/icon.ico` embedded in the exe carried the stale
+  teal/white bolt look; rebuilt byte for byte from the approved green/black
+  PNG frames (7 sizes) and the UWP tiles re-rendered with the same GDI+
+  recipe (`scripts/regen-icons.ps1`, auditor in `tools/dump-ico.ps1`).
+- Options drawer close speed: `toggle_drawer` used to wait for the 2 s
+  geometry watchdog; `relayout` now runs inside the toggle (parking
+  measured at 1 ms).
+- Account rename list: the drawer rebuilt the list every 5 s and reset
+  the input you were typing in (and stole its focus). Rows are now
+  persistent by id and the refresh never touches a focused or dirty
+  input; untouched rows still follow server-side renames.

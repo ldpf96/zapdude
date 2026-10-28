@@ -1,9 +1,9 @@
 /**
- * Zapdude — hide WhatsApp Web's "download the app" promos.
+ * Zapdude - hide WhatsApp Web's "download the app" promos.
  *
  * SAFE VERSION. An earlier generic sweep hid any container whose text
  * merely CONTAINED a promo phrase; WhatsApp's landing containers matched
- * too and the whole page went invisible (bare dark background — looked
+ * too and the whole page went invisible (bare dark background - looked
  * like a "gray page" while the DOM stayed alive).
  *
  * This version can never blank the page:
@@ -11,7 +11,7 @@
  *      (containers are skipped when a descendant already matches).
  *   2. Then, walking UP from each hidden node, an ancestor is collapsed
  *      only when EVERY one of its children is display:none (computed) and
- *      it holds the promo — so a big ancestor dies only when all of its
+ *      it holds the promo - so a big ancestor dies only when all of its
  *      content is already promo content.
  *   3. QR, chat list, composer and any functional element never match the
  *      promo pattern, so they are never candidates.
@@ -50,7 +50,7 @@
         'i'
     );
 
-    /// Standalone promo buttons ("Descargar", "Download") — exact-text only,
+    /// Standalone promo buttons ("Descargar", "Download") - exact-text only,
     /// never a substring, so image/file download buttons elsewhere survive.
     var BUTTON_PROMO_PATTERN = /^\s*(descarga\w*|download|obtener|get|instala\w*|install)\s*$/i;
 
@@ -174,7 +174,7 @@
     }
 
     /// Hide the chain of ancestors that are left with only promo-ish children
-    /// (bounded climb). Started from a node that just got hidden — so an
+    /// (bounded climb). Started from a node that just got hidden - so an
     /// ancestor can only die if EVERY one of its children is already hidden,
     /// an icon, or promo content. A functional control (composer, chat list)
     /// can never be promo-ish, so real UI is untouchable.
@@ -191,7 +191,7 @@
             }
             for (var i = 0; i < children.length; i++) {
                 if (!childIsPromoish(children[i])) {
-                    return; // real content — stop climbing
+                    return; // real content - stop climbing
                 }
             }
             try {
@@ -234,7 +234,7 @@
     /// Landing-page promo card ("Download WhatsApp for Windows" next to the
     /// QR). Only runs on the LOGGED-OUT landing (no chat list, no chat pane):
     /// find the control that just says "Download"/"Descargar" and climb to
-    /// the SMALLEST ancestor that also contains promo copy — that is the
+    /// the SMALLEST ancestor that also contains promo copy - that is the
     /// whole card (illustration + copy + button). Safety rails: any
     /// functional element (canvas/QR, inputs, editables) or a text budget
     /// blowout stops the climb, so the QR card can never be matched.
@@ -248,7 +248,7 @@
         var buttons = document.querySelectorAll('button, a, [role="button"]');
         for (var i = 0; i < buttons.length; i++) {
             var btn = buttons[i];
-            // NOTE: hidden buttons are NOT skipped — the generic sweep hides
+            // NOTE: hidden buttons are NOT skipped - the generic sweep hides
             // the bare "Download" button first, and that hidden button is the
             // trail this flow follows up to the enclosing promo card.
             if (inProtectedZone(btn)) {

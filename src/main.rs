@@ -1,12 +1,12 @@
-//! Zapdude — WhatsApp Web desktop client with a local automation API.
+//! Zapdude - WhatsApp Web desktop client with a local automation API.
 //! Shell layout is inspired by the client whose idea motivated this
 //! project (ZapZap by Rafael Tosta); the implementation is original code.
 #![windows_subsystem = "windows"]
 //!   - ONE window ("main") hosts every webview:
-//!       * `rail`        — the narrow account rail (logo, avatars, "+")
-//!       * `welcome`     — technical backdrop (never a destination)
-//!       * `drawer`      — full-screen options panel (logo click, lazy)
-//!       * `account-<id>` — one WhatsApp Web webview per account, switched
+//!       * `rail`        - the narrow account rail (logo, avatars, "+")
+//!       * `welcome`     - technical backdrop (never a destination)
+//!       * `drawer`      - full-screen options panel (logo click, lazy)
+//!       * `account-<id>` - one WhatsApp Web webview per account, switched
 //!         in place like browser tabs, each with its own isolated profile.
 //!         Created LAZILY on first open (startup stays instant no matter
 //!         how many accounts exist).
@@ -95,7 +95,7 @@ fn main() {
             window::create_shell(&app_handle)?;
 
             // 3. Open the first account's WhatsApp Web right away (the app
-            //    opens straight into the QR — no welcome interstitial).
+            //    opens straight into the QR - no welcome interstitial).
             //    Creates the first account if none exists.
             //    Other accounts are created LAZILY on their first open, so
             //    startup and adding many accounts stay fast (they are "just
