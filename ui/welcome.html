@@ -24,30 +24,40 @@
     .add {
       background: #25d366; color: #04231b; border: none; border-radius: 26px;
       padding: 14px 36px; font-size: 15px; font-weight: 700; cursor: pointer;
-      transition: background 0.15s, transform 0.12s;
+      transition: background 0.15s, transform 0.12s; font-family: inherit;
     }
     .add:hover { background: #1fbe5c; transform: translateY(-1px); }
+    .add:disabled { opacity: 0.5; cursor: wait; }
     .hint { margin-top: 28px; font-size: 12.5px; color: #54626f; }
   </style>
 </head>
 <body>
   <div class="logo">⚡</div>
-  <h1>Bienvenido a ZapZap</h1>
+  <h1 id="title">Bienvenido a ZapZap</h1>
   <p id="msg">Todas tus cuentas de WhatsApp en una sola ventana, con notificaciones en un único lugar y una API local para agentes de IA.</p>
   <button class="add" id="addBtn">+ Agregar cuenta</button>
   <div class="hint" id="hint">Escanea el código QR con tu teléfono, igual que en WhatsApp Web.</div>
 
   <script>
-    const invoke = window.__TAURI.core.invoke;
-    document.getElementById("addBtn").onclick = async () => {
-      try { await invoke("add_account"); } catch (e) { console.error(e); }
+    "use strict";
+    async function api(path, options) {
+      const res = await fetch(path, options);
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return res.json();
+    }
+
+    document.getElementById("addBtn").onclick = async (ev) => {
+      ev.currentTarget.disabled = true;
+      try { await api("/api/accounts", { method: "POST" }); } catch (e) { console.error(e); }
+      ev.currentTarget.disabled = false;
     };
+
     // If accounts already exist, invite the user to pick one from the rail.
     (async () => {
       try {
-        const accounts = await invoke("get_accounts");
-        if (accounts.length > 0) {
-          document.querySelector("h1").textContent = "Selecciona una cuenta";
+        const data = await api("/api/accounts");
+        if ((data.accounts || []).length > 0) {
+          document.getElementById("title").textContent = "Selecciona una cuenta";
           document.getElementById("msg").textContent =
             "Toca uno de los iconos de la barra lateral para abrir su WhatsApp. Usa el botón “+” para agregar otra cuenta.";
           document.getElementById("addBtn").textContent = "+ Agregar otra cuenta";

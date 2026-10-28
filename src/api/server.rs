@@ -44,6 +44,12 @@ use super::protocol::{
 };
 use crate::config::{self, AccountConfig, SettingsState};
 
+/// The shell UI is served BY this server (same origin as the API), so the
+/// rail/welcome/settings pages never suffer CORS or path issues.
+const RAIL_HTML: &str = include_str!("../../ui/rail.html");
+const WELCOME_HTML: &str = include_str!("../../ui/welcome.html");
+const SETTINGS_HTML: &str = include_str!("../../ui/settings.html");
+
 /// Holder guarded by a Mutex so the server can be stopped and restarted
 /// (port changes) without losing the slot.
 static SERVER: OnceLock<Mutex<Option<ServerHolder>>> = OnceLock::new();
@@ -226,6 +232,12 @@ fn require_api_enabled(state: &ApiState) -> Result<(), ApiError> {
 
 fn router(state: ApiState) -> Router {
     Router::new()
+        // --- Shell UI (same origin as the API: fetch always works) ---
+        .route("/", get(serve_rail))
+        .route("/welcome", get(serve_welcome))
+        .route("/settings", get(serve_settings))
+        .route("/api/ui/quit", post(ui_quit))
+        .route("/api/ui/settings", post(ui_open_settings))
         // --- Management endpoints (no auth, used by the shell UI + local tools) ---
         .route("/api/healthz", get(healthz))
         .route("/api/config", get(get_config).post(post_config))
@@ -301,6 +313,73 @@ fn parse_query_to_map(raw: Option<&str>) -> std::collections::HashMap<String, St
 // Management handlers (no auth; reachability gated by bind address)
 // -------------------------------------------------------------------------
 
+async fn serve_rail() -> impl IntoResponse {
+    axum::response::Html(RAIL_HTML)
+}
+
+async fn serve_welcome() -> impl IntoResponse {
+    axum::response::Html(WELCOME_HTML)
+}
+
+async fn serve_settings() -> impl IntoResponse {
+    axum::response::Html(SETTINGS_HTML)
+}
+
+/// Session state derived from a page snapshot (three honest states).
+fn three_state(snapshot: &Value) -> String {
+    let composer = snapshot
+        .get("composer_visible")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let chat_list = snapshot
+        .get("chat_list")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let qrcode = snapshot
+        .get("qrcode_visible")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    if composer || chat_list {
+        "logged_in".to_string()
+    } else if qrcode {
+        "scan_qr".to_string()
+    } else {
+        "detecting".to_string()
+    }
+}
+
+/// Quit the whole app from the shell UI.
+async fn ui_quit() -> (StatusCode, Json<Value>) {
+    if let Some(app_handle) = crate::APP_HANDLE.get() {
+        let handle = app_handle.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(200));
+            shutdown_loopback_server();
+            handle.exit(0);
+        });
+        json_ok(json!({ "quitting": true }))
+    } else {
+        json_error(&ApiError::internal("app handle not available"))
+    }
+}
+
+/// Open (or focus) the settings window: POST /api/ui/settings?tab=api.
+async fn ui_open_settings(RawQuery(raw): RawQuery) -> (StatusCode, Json<Value>) {
+    let params = parse_query_to_map(raw.as_deref());
+    let tab = params
+        .get("tab")
+        .cloned()
+        .unwrap_or_else(|| "api".to_string());
+    if let Some(app_handle) = crate::APP_HANDLE.get() {
+        if let Err(err) = crate::window::create_settings_window(app_handle, &tab) {
+            return json_error(&ApiError::internal(err.to_string()));
+        }
+        json_ok(json!({ "opened": true, "tab": tab }))
+    } else {
+        json_error(&ApiError::internal("app handle not available"))
+    }
+}
+
 async fn healthz() -> impl IntoResponse {
     json_ok(json!({
         "service": "zapdude-api",
@@ -349,9 +428,17 @@ async fn post_config(
     if let Err(err) = state.settings.update_api(api.clone()) {
         return json_error(&ApiError::internal(err));
     }
-    // Restart so port/key changes take effect immediately.
-    shutdown_loopback_server();
-    start_loopback_server();
+    // Respond first; restart the server afterwards so port/key changes take
+    // effect, then re-point the shell webviews at the (possibly new) port.
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(250));
+        shutdown_loopback_server();
+        start_loopback_server();
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        if let Some(app_handle) = crate::APP_HANDLE.get() {
+            crate::window::reload_shell_ui(app_handle);
+        }
+    });
     json_ok(json!({
         "enabled": api.enabled,
         "port": api.port,
@@ -365,6 +452,31 @@ async fn list_accounts() -> (StatusCode, Json<Value>) {
     let Some(state_settings) = settings() else {
         return json_error(&ApiError::internal("app state not initialized"));
     };
+    let active = crate::window::active_content();
+    // Snapshot every account page concurrently with a small budget so a
+    // stuck WhatsApp page never stalls the rail polling.
+    let mut set = tokio::task::JoinSet::new();
+    for account in state_settings.current_accounts() {
+        set.spawn(async move {
+            let session_state = if let Some(bridge) = page_for(Some(&account.id)) {
+                tokio::time::timeout(std::time::Duration::from_millis(1200), bridge.status_snapshot())
+                    .await
+                    .ok()
+                    .and_then(|result| result.ok())
+                    .map(|snapshot| three_state(&snapshot))
+                    .unwrap_or_else(|| "detecting".to_string())
+            } else {
+                "detecting".to_string()
+            };
+            (account.id, session_state)
+        });
+    }
+    let mut states = std::collections::HashMap::new();
+    while let Some(joined) = set.join_next().await {
+        if let Ok((id, session_state)) = joined {
+            states.insert(id, session_state);
+        }
+    }
     let account_entries: Vec<Value> = state_settings
         .current_accounts()
         .iter()
@@ -373,7 +485,9 @@ async fn list_accounts() -> (StatusCode, Json<Value>) {
                 "id": account.id,
                 "label": account.label,
                 "enabled": account.enabled,
-                "window_present": page_for(Some(&account.id)).is_some(),
+                "active": active.as_deref()
+                    == Some(crate::window::account_webview_label(&account.id).as_str()),
+                "session_state": states.get(&account.id).cloned().unwrap_or_else(|| "detecting".to_string()),
             })
         })
         .collect();

@@ -1,18 +1,20 @@
 //! ZapZap-style application shell: ONE window that hosts every webview.
 //!
 //! Layout (like the original ZapZap desktop client):
-//!   - A narrow left rail (label `rail`) loaded from `rail.html`: the ZapZap
-//!     logo, one circular avatar per account (click to switch), a "+" button
-//!     to add an account in one click, and settings/about buttons at the
-//!     bottom. The rail is the only thing the user always sees.
+//!   - A narrow left rail (label `rail`) — the ZapZap logo, one circular
+//!     avatar per account (click to switch), a "+" button to add an account
+//!     in one click, and settings/about buttons at the bottom.
 //!   - One WhatsApp Web webview per account (label `account-<id>`), each with
 //!     an isolated WebView2 profile so every account stays logged in. They
 //!     are stacked on top of each other; exactly one is visible at a time.
 //!   - A welcome webview (label `welcome`) shown when no account is active.
 //!
-//! Multi-webview inside one window needs the Tauri `unstable` feature; all
-//! webview creation happens from non-main threads (async commands, setup or
-//! spawned threads) so the WebView2 main-thread deadlock does not apply.
+//! The rail/welcome/settings pages are SERVED BY THE LOOPBACK API SERVER
+//! (same origin), so their `fetch` calls always work — no IPC, no CORS,
+//! no file:// resolution problems. Multi-webview inside one window needs
+//! the Tauri `unstable` feature; webview creation happens from non-main
+//! threads (setup, async commands or spawned threads) so the WebView2
+//! main-thread deadlock does not apply.
 
 use std::sync::Mutex;
 
@@ -57,9 +59,18 @@ pub fn account_webview_label(account_id: &str) -> String {
     format!("account-{account_id}")
 }
 
-/// The id of the webview currently shown (None = rail only / unknown).
+/// The label of the content webview currently shown (None = rail only).
 pub fn active_content() -> Option<String> {
     ACTIVE.lock().ok().and_then(|guard| guard.clone())
+}
+
+/// Base URL of the loopback server that serves the shell UI + API.
+pub fn ui_base_url() -> String {
+    let port = crate::SHARED
+        .get()
+        .map(|shared| shared.settings.current().port)
+        .unwrap_or(crate::config::DEFAULT_API_PORT);
+    format!("http://127.0.0.1:{port}")
 }
 
 fn combined_initialization_script() -> String {
@@ -151,17 +162,22 @@ pub fn create_shell(app: &AppHandle) -> tauri::Result<()> {
         .build()?;
 
     let content = content_size(&window)?;
+    let base = ui_base_url();
+    let rail_url: url::Url = format!("{base}/").parse().expect("rail URL must parse");
+    let welcome_url: url::Url = format!("{base}/welcome")
+        .parse()
+        .expect("welcome URL must parse");
 
     // 1. The ZapZap rail (always visible, always on the left).
     window.add_child(
-        WebviewBuilder::new("rail", WebviewUrl::App("rail.html".into())),
+        WebviewBuilder::new("rail", WebviewUrl::External(rail_url)),
         LogicalPosition::new(0.0_f64, 0.0_f64),
         LogicalSize::new(RAIL_WIDTH, content.height),
     )?;
 
     // 2. Welcome / onboarding content (default until an account is opened).
     window.add_child(
-        WebviewBuilder::new("welcome", WebviewUrl::App("welcome.html".into())),
+        WebviewBuilder::new("welcome", WebviewUrl::External(welcome_url)),
         LogicalPosition::new(RAIL_WIDTH, 0.0_f64),
         LogicalSize::new(content.width, content.height),
     )?;
@@ -259,32 +275,46 @@ pub fn close_account_webview(app: &AppHandle, id: &str) {
     }
 }
 
-/// Open (or focus) the settings window on the requested tab.
-/// The tab is applied via `on_page_load` (fresh window) or a direct eval
-/// (existing window); `settings.html` also polls `window.__zapTab` as a
-/// belt-and-braces fallback.
-pub fn create_settings_window(app: &AppHandle, tab: &str) -> tauri::Result<()> {
-    let tab_for_js = tab.replace(['\\', '\'', ';'], "");
-    let tab_for_load = tab_for_js.clone();
-    let window = tauri::webview::WebviewWindowBuilder::new(
-        app,
-        "settings",
-        WebviewUrl::App("settings.html".into()),
-    )
-    .title("Configuración — ZapZap")
-    .inner_size(720.0_f64, 660.0_f64)
-    .min_inner_size(560.0_f64, 500.0_f64)
-    .resizable(true)
-    .on_page_load(move |webview, payload| {
-        if matches!(payload.event(), tauri::webview::PageLoadEvent::Finished) {
-            let _ = webview.eval(&format!(
-                "window.__zapTab = '{}'; window.__zapSetTab && window.__zapSetTab('{}');",
-                tab_for_load, tab_for_load
-            ));
+/// Navigate rail/welcome/settings webviews to the (possibly new) base URL.
+/// Used after the API port changes so the shell keeps working.
+pub fn reload_shell_ui(app: &AppHandle) {
+    let base = ui_base_url();
+    let Some(window) = app.get_window("main") else {
+        return;
+    };
+    for webview in window.webviews() {
+        let target = match webview.label() {
+            "rail" => format!("{base}/"),
+            "welcome" => format!("{base}/welcome"),
+            other if other.starts_with("account-") => continue, // WhatsApp views keep their session
+            _ => continue,
+        };
+        if let Ok(url) = target.parse::<url::Url>() {
+            let _ = webview.navigate(url);
         }
-    })
-    .build()?;
-    let _ = window.set_focus();
+    }
+    if let Some(settings) = app.get_webview_window("settings") {
+        let _ = settings.navigate(format!("{base}/settings?tab=api").parse().unwrap());
+    }
+}
+
+/// Open (or focus) the settings window on the requested tab.
+/// The tab travels as a query param (`?tab=api|agent|about`) which the
+/// server-served page reads natively.
+pub fn create_settings_window(app: &AppHandle, tab: &str) -> tauri::Result<()> {
+    let safe_tab: String = tab
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '_')
+        .collect();
+    let url: url::Url = format!("{}/settings?tab={}", ui_base_url(), safe_tab)
+        .parse()
+        .expect("settings URL must parse");
+    tauri::webview::WebviewWindowBuilder::new(app, "settings", WebviewUrl::External(url))
+        .title("Configuración — ZapZap")
+        .inner_size(720.0_f64, 660.0_f64)
+        .min_inner_size(560.0_f64, 500.0_f64)
+        .resizable(true)
+        .build()?;
     Ok(())
 }
 
@@ -318,7 +348,6 @@ pub fn initialize_tray(app: &App) {
         let icon = app.default_window_icon().cloned();
         let mut tray_builder = TrayIconBuilder::with_id("zapdude-tray")
             .menu(&menu)
-            .show_menu_on_left_click(true)
             .on_menu_event(|app_handle, event| {
                 crate::window::handle_tray_menu_event(app_handle, event.id().as_ref());
             });

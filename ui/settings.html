@@ -76,7 +76,11 @@
     .toast.show { transform: translateX(-50%) translateY(0); }
     code { background: #0b141a; padding: 2px 6px; border-radius: 5px; font-size: 11.5px; }
     a { color: #25d366; text-decoration: none; }
-    .endpoint { background: #0b141a; border: 1px solid #1d2a33; border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; font-family: Consolas, monospace; font-size: 11.5px; color: #9fb3ac; }
+    .endpoint {
+      background: #0b141a; border: 1px solid #1d2a33; border-radius: 8px;
+      padding: 8px 10px; margin-bottom: 8px;
+      font-family: Consolas, monospace; font-size: 11.5px; color: #9fb3ac;
+    }
     .endpoint b { color: #25d366; font-weight: 600; }
   </style>
 </head>
@@ -159,20 +163,22 @@
   <div class="toast" id="toast"></div>
 
   <script>
-    const invoke = window.__TAURI.core.invoke;
+    "use strict";
     const $ = (id) => document.getElementById(id);
 
+    async function api(path, options) {
+      const res = await fetch(path, options);
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return res.json();
+    }
+
     function setTab(name) {
+      if (!["api", "agent", "about"].includes(name)) name = "api";
       document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === name));
       document.querySelectorAll(".panel").forEach(p => p.classList.toggle("active", p.id === "panel-" + name));
     }
     document.querySelectorAll(".tab").forEach(t => t.onclick = () => setTab(t.dataset.tab));
-    // Tab requested by the host when opening this window.
-    window.__zapSetTab = setTab;
-    (function poll() {
-      if (window.__zapTab) { setTab(window.__zapTab); window.__zapTab = null; return; }
-      setTimeout(poll, 120);
-    })();
+    setTab(new URLSearchParams(location.search).get("tab") || "api");
 
     function toast(msg) {
       const t = $("toast");
@@ -189,32 +195,40 @@
 
     async function load() {
       try {
-        const cfg = await invoke("get_api_config");
+        const cfg = await api("/api/config");
         $("enabled").checked = cfg.enabled;
         $("port").value = cfg.port;
         $("apiKey").value = cfg.api_key;
         $("webhookUrl").value = cfg.webhook_url;
         $("webhookSecret").value = cfg.webhook_secret;
-        $("ver").textContent = "v" + cfg.version;
         updateBase();
         $("agentStatus").textContent = cfg.enabled
           ? "API activa — usa la clave de la pestaña “Configuración API”."
           : "La API está deshabilitada. Actívala en “Configuración API”.";
-      } catch (e) { console.error(e); }
+      } catch (e) {
+        $("agentStatus").textContent = "No se pudo leer la configuración: " + e.message;
+      }
     }
 
     $("saveBtn").onclick = async () => {
       try {
-        await invoke("save_api_config", { config: {
+        await api("/api/config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
           enabled: $("enabled").checked,
           port: parseInt($("port").value) || 29977,
           api_key: $("apiKey").value.trim(),
           webhook_url: $("webhookUrl").value.trim(),
           webhook_secret: $("webhookSecret").value.trim(),
-        }});
+        })});
         toast("Configuración guardada");
-        load();
-      } catch (e) { toast("Error: " + e); }
+        // The server may have restarted on a new port; follow it.
+        setTimeout(async () => {
+          try {
+            const cfg = await api("/api/config");
+            if (parseInt($("port").value) !== cfg.port) $("port").value = cfg.port;
+          } catch (_) {}
+          load();
+        }, 1200);
+      } catch (e) { toast("Error: " + e.message); }
     };
     load();
   </script>

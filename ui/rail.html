@@ -62,8 +62,10 @@
       display: flex; align-items: center; justify-content: center;
       transition: background 0.12s, transform 0.12s;
       flex-shrink: 0; margin-top: 4px; position: relative;
+      font-family: inherit;
     }
     .add-btn:hover { background: rgba(37, 211, 102, 0.22); transform: scale(1.07); }
+    .add-btn:disabled { opacity: 0.5; cursor: wait; }
     .footer {
       display: flex; flex-direction: column; gap: 6px; align-items: center;
       padding-top: 12px; flex-shrink: 0;
@@ -73,9 +75,15 @@
       background: transparent; color: #7d938b; font-size: 17px; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       transition: background 0.12s, color 0.12s; position: relative;
+      font-family: inherit;
     }
     .icon-btn:hover { background: #182b26; color: #e9edef; }
     .version { font-size: 9px; color: #3d534b; margin-top: 4px; }
+    .offline {
+      position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
+      background: #3a2a1a; color: #f0b232; font-size: 10px;
+      padding: 3px 8px; border-radius: 6px; display: none; z-index: 30;
+    }
     .confirm-box {
       position: fixed; inset: 0; background: rgba(0,0,0,0.5);
       display: none; align-items: center; justify-content: center; z-index: 50;
@@ -87,12 +95,13 @@
       box-shadow: 0 16px 50px rgba(0,0,0,0.6);
     }
     .confirm .row { display: flex; gap: 8px; margin-top: 18px; justify-content: center; }
-    .confirm button { padding: 8px 16px; border-radius: 9px; border: none; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+    .confirm button { padding: 8px 16px; border-radius: 9px; border: none; font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: inherit; }
     .c-cancel { background: #24332d; color: #e9edef; }
     .c-del { background: #ef5350; color: #fff; }
   </style>
 </head>
 <body>
+  <div class="offline" id="offline">Reconectando…</div>
   <div class="logo">⚡</div>
   <div class="rail-scroll" id="rail"></div>
   <button class="add-btn" id="addBtn" title="Agregar cuenta">+</button>
@@ -116,28 +125,51 @@
   </div>
 
   <script>
-    const Tauri = window.__TAURI;
-    const invoke = Tauri.core.invoke;
+    "use strict";
     let pendingRemove = null;
+    let wasOffline = false;
+
+    async function api(path, options) {
+      const res = await fetch(path, options);
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return res.json();
+    }
 
     function esc(s) {
       return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
     }
 
+    // Self-heal: if the API goes away (port change / restart), show a badge
+    // and reload this page as soon as the server answers again.
+    async function healthWatch() {
+      try {
+        await api("/api/healthz");
+        if (wasOffline) { location.reload(); }
+        document.getElementById("offline").style.display = "none";
+        wasOffline = false;
+      } catch (_) {
+        document.getElementById("offline").style.display = "block";
+        wasOffline = true;
+      }
+      setTimeout(healthWatch, 2000);
+    }
+
     async function loadRail() {
-      let accounts = [];
-      try { accounts = await invoke("get_accounts"); } catch (e) { console.error(e); return; }
+      let data;
+      try { data = await api("/api/accounts"); }
+      catch (e) { return; } // healthWatch handles reconnection UI
+      const accounts = data.accounts || [];
       const rail = document.getElementById("rail");
       rail.innerHTML = "";
       for (const a of accounts) {
         const el = document.createElement("div");
         el.className = "avatar" + (a.active ? " active" : "");
-        el.title = a.label;
-        const dot = a.session_state === "logged_in" ? "logged" : a.session_state === "scan_qr" ? "qr" : "detecting";
+        const state = a.session_state === "logged_in" ? "logged" : a.session_state === "scan_qr" ? "qr" : "detecting";
+        const stateLabel = a.session_state === "logged_in" ? "conectado" : a.session_state === "scan_qr" ? "espera QR" : "cargando";
         el.innerHTML = esc((a.label || "?").charAt(0).toUpperCase()) +
-          `<span class="dot ${dot}"></span>` +
-          `<span class="tooltip">${esc(a.label)} · ${a.session_state === "logged_in" ? "conectado" : a.session_state === "scan_qr" ? "espera QR" : "cargando"}</span>`;
-        el.onclick = () => invoke("open_account", { id: a.id }).catch(console.error);
+          `<span class="dot ${state}"></span>` +
+          `<span class="tooltip">${esc(a.label)} · ${stateLabel}</span>`;
+        el.onclick = () => api("/api/accounts/" + encodeURIComponent(a.id) + "/open", { method: "POST" }).catch(console.error);
         el.oncontextmenu = (ev) => { ev.preventDefault(); openConfirm(a.id, a.label); };
         rail.appendChild(el);
       }
@@ -155,27 +187,37 @@
     }
     document.getElementById("confirmDel").onclick = async () => {
       if (pendingRemove) {
-        try { await invoke("remove_account", { id: pendingRemove }); } catch (e) { console.error(e); }
+        try { await api("/api/accounts/" + encodeURIComponent(pendingRemove), { method: "DELETE" }); }
+        catch (e) { console.error(e); }
       }
       closeConfirm();
       loadRail();
     };
 
-    document.getElementById("addBtn").onclick = async () => {
-      try { await invoke("add_account"); loadRail(); } catch (e) { console.error(e); }
+    document.getElementById("addBtn").onclick = async (ev) => {
+      const btn = ev.currentTarget;
+      btn.disabled = true;
+      try {
+        await api("/api/accounts", { method: "POST" });
+        await loadRail();
+      } catch (e) { console.error(e); }
+      btn.disabled = false;
     };
-    document.getElementById("settingsBtn").onclick = () => invoke("open_settings", { tab: "api" }).catch(console.error);
-    document.getElementById("aboutBtn").onclick = () => invoke("open_settings", { tab: "about" }).catch(console.error);
+    document.getElementById("settingsBtn").onclick = () =>
+      api("/api/ui/settings?tab=api", { method: "POST" }).catch(console.error);
+    document.getElementById("aboutBtn").onclick = () =>
+      api("/api/ui/settings?tab=about", { method: "POST" }).catch(console.error);
 
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeConfirm(); });
 
     (async () => {
       try {
-        const cfg = await invoke("get_api_config");
-        document.getElementById("version").textContent = "v" + cfg.version;
+        const h = await api("/api/healthz");
+        document.getElementById("version").textContent = "v" + (h.version || "1.0.0");
       } catch (_) {}
       await loadRail();
       setInterval(loadRail, 4000);
+      healthWatch();
     })();
   </script>
 </body>
