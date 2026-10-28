@@ -1,0 +1,56 @@
+name: release
+
+# Builds the official artifacts for a release tag:
+#   - macOS .dmg (Apple Silicon aarch64 + Intel x86_64), unsigned,
+#   - Windows NSIS installer,
+# and attaches them to the release for the tag that triggered the run.
+# `workflow_dispatch` also runs for ad-hoc builds.
+
+on:
+  workflow_dispatch: {}
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+            bundles: 'app,dmg'
+          - platform: macos-latest
+            target: x86_64-apple-darwin
+            bundles: 'app,dmg'
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundles: 'nsis'
+
+    name: ${{ matrix.platform }} (${{ matrix.target }})
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Build and attach artifacts
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: "."
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'v1.2.0' }}
+          releaseName: "Zapdude ${{ github.ref_type == 'tag' && github.ref_name || 'v1.2.0' }}"
+          releaseDraft: false
+          prerelease: false
+          args: --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}

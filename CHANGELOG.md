@@ -3,17 +3,31 @@
 Notable changes to this project are documented here. The format follows
 Keep a Changelog; versioning is SemVer.
 
+## [1.2.0] - 2026-10-28
+
+### Added
+- App-wide light/dark theme: account views pin the theme color scheme on
+  their WebView2 profiles (`prefers-color-scheme`) at creation and on
+  preference changes, so WhatsApp Web follows the in-app theme live -
+  no reload, no session round trip. Native caption bars follow too
+  (`Window::set_theme`, applied to the main window and call pop-outs).
+- macOS support: first `.dmg` builds (Apple Silicon + Intel) via
+  TypeScript-free CI on GitHub Actions (macOS 14+, unsigned, distributed
+  directly). `icon.icns` added to the bundle list and the macOS minimum
+  system version pinned to 14.0 (multiwebview needs the private APIs and
+  only works there).
+- Release workflow `.github/workflows/release.yml`: tagged builds for
+  macOS (aarch64 + x86_64) and Windows NSIS from the same tag.
+
 ## [1.1.0] - 2026-10-28
 
 ### Changed
 - The whole project (UI, docs, installer, tray, code comments) is now in
   English.
-- Honest origin story on the record: the design reference was ZapZap by
-  Rafael Tosta, early versions intentionally tried to feel like it, and
-  the implementation grew into something substantially different. NOTICE
-  and README tell the story, plus the development stack: OpenCode agent
-  harness + GLM-5.3 model (by Z.ai), vibe coding style, author verified
-  everything on real hardware.
+- Project origin and credits consolidated in NOTICE.md and README.md:
+  the design reference (ZapZap by Rafael Tosta) and the development
+  tooling (OpenCode agent harness + GLM-5.3 model by Z.ai, with every
+  change verified on real hardware by the author) are documented there.
 - Installer ships English only.
 
 ### Fixed
@@ -76,9 +90,9 @@ Keep a Changelog; versioning is SemVer.
   scrolling; account renaming (tray, rail and API see the new name).
 - NSIS installer (`tauri build --bundles nsis`, `installMode:
   currentUser`, uninstall hook that wipes the data folder).
-- License AGPL-3.0 with a NOTICE telling the origin story (design
-  reference ZapZap by Rafael Tosta, authored by ldpf96, AI assisted with
-  OpenCode + GLM-5.3).
+- License AGPL-3.0 with a NOTICE crediting the design reference (ZapZap
+  by Rafael Tosta), the author (ldpf96) and the AI-assisted tooling
+  (OpenCode + GLM-5.3).
 
 ### Fixed
 - WebView2 gray page (two chained causes): webviews born hidden or tiny
