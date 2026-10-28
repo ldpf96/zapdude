@@ -1,5 +1,5 @@
 /**
- * ZapZap (Rust) — hide WhatsApp Web's "download the app" promos.
+ * Zapdude — hide WhatsApp Web's "download the app" promos.
  *
  * SAFE VERSION. An earlier generic sweep hid any container whose text
  * merely CONTAINED a promo phrase; WhatsApp's landing containers matched

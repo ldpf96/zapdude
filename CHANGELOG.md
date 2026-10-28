@@ -6,8 +6,9 @@ El formato sigue de cerca Keep a Changelog; versionado SemVer.
 ## [1.0.0] - 2026-10-28
 
 ### Added
-- Reescritura completa en Rust del cliente ZapZap (Python/GTK) de Rafael
-  Tosta sobre Tauri 2 + WebView2.
+- Cliente de escritorio de WhatsApp Web multi-cuenta con API local de
+  automatización, escrito en Rust (Tauri 2 + WebView2). Proyecto original
+  de ldpf96, inspirado en la idea del cliente ZapZap de Rafael Tosta.
 - **Shell v3 de ventana única** (feature `unstable`): rail de cuentas (76 px),
   un webview de WhatsApp Web por cuenta con perfil WebView2 aislado
   (`webview/<id>`), backdrop de bienvenida y panel de opciones a pantalla
@@ -42,12 +43,13 @@ El formato sigue de cerca Keep a Changelog; versionado SemVer.
   idempotencia por script.
 - Borrar la última cuenta muestra la pantalla de bienvenida con el botón
   "Agregar cuenta" (no auto-crea cuentas vacías); el arranque sí abre la
-  primera cuenta (o crea "Cuenta 1") como el ZapZap original.
+  primera cuenta (o crea "Cuenta 1") como el cliente original que inspiró la idea.
 - Configuración persistente en `%APPDATA%\app.zapzap.desktop\config.json`
   (camelCase, tolerante a BOM) con `api` y `accounts` sanitizados.
 - Instalador NSIS (`tauri build --bundles nsis`, `installMode: currentUser`,
   selector de idioma, hook que borra los datos al desinstalar).
-- Licencia AGPL-3.0 y `NOTICE.md` con crédito a Rafael Tosta.
+- Licencia AGPL-3.0 y `NOTICE.md` (autor ldpf96; credita la *idea* original
+  de ZapZap sin reusar código).
 
 ### Fixed
 - Página gris de WebView2 (2 causas): webviews nacidos ocultos o enanos no

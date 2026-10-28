@@ -1,9 +1,9 @@
-//! Persistent settings for ZapZap (Rust).
+//! Persistent settings for Zapdude.
 //!
-//! Mirrors the `api/*` keys of the original Python fork plus the
-//! multi-account registry. Everything lives in one JSON file inside the OS
-//! application-data directory. Only keys the automation layer reads are
-//! persisted; labels are kept separately from ids.
+//! Holds the `api/*` keys plus the multi-account registry and UI prefs.
+//! Everything lives in one JSON file inside the OS application-data
+//! directory. Only keys the automation layer reads are persisted; labels
+//! are kept separately from ids.
 
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
@@ -159,9 +159,9 @@ impl Default for ConfigFile {
         Self {
             api: ApiConfig::default(),
             // VIRGIN installs start with NO accounts: the shell auto-opens
-            // a fresh "Cuenta 1" (account-1) with its QR — matching the
-            // original ZapZap flow (the legacy "default" account name came
-            // from the Python fork's config and confused nobody's naming).
+            // a fresh "Cuenta 1" (account-1) with its QR. The legacy
+            // "default" account name from other clients' configs is never
+            // recreated.
             accounts: vec![],
             prefs: AppPrefs::default(),
         }

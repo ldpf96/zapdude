@@ -1,5 +1,5 @@
 /**
- * ZapZap (Rust) local API page bridge.
+ * Zapdude local API page bridge.
  *
  * Exposes a tiny, defensive read-and-act surface over the WhatsApp Web DOM
  * for the local automation API. Every entry point returns a plain JSON-able
@@ -17,7 +17,7 @@
 (function () {
     'use strict';
 
-    var BRIDGE_ID = '__zapZapApiV1';
+    var BRIDGE_ID = '__zapdudeApiV1';
 
     function emitError(operation, error) {
         return {
@@ -154,8 +154,7 @@
 
             /**
              * Insert text into the open composer and dispatch Enter.
-             * Mirrors the resilient paste strategy used by ZapZap's own
-             * paste-as-plain-text feature (Lexical-aware).
+             * Uses a resilient paste-as-plain-text strategy (Lexical-aware).
              */
             sendCurrent: function (text) {
                 try {
@@ -345,7 +344,7 @@
             return { ok: true };
         }
 
-        window.__zapZapApiV1 = api;
+        window.__zapdudeApiV1 = api;
         api.dispatch = function (id, op, argsJson) {
             try {
                 return dispatchCommand(id, op, argsJson);

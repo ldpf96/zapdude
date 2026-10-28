@@ -625,7 +625,7 @@ async fn list_accounts() -> (StatusCode, Json<Value>) {
     json_ok(json!({ "accounts": account_entries }))
 }
 
-/// Create an account the ZapZap way: no body required, ids are generated
+/// Create an account the easy way: no body required, ids are generated
 /// (`account-N` / `Cuenta N`). The new account's WhatsApp Web opens right
 /// away so the QR is immediately on screen.
 async fn add_account_http(State(state): State<ApiState>) -> (StatusCode, Json<Value>) {

@@ -13,8 +13,17 @@
 >
 > La app se llama **Zapdude** (Z mayúscula, resto minúscula — aclaración
 > EXPLÍCITA del usuario: "Debe ser Zapdude, no ZapDude"; NO usar "ZapDude").
-> Mantener crédito a Rafael Tosta por ZapZap. Todo verificado con capturas
-> de ventana reales (PrintWindow + PW_RENDERFULLCONTENT). Instalador actual:
+> **Marco legal/atribución (decisión del usuario, v7)**: Zapdude es un
+> PROYECTO ORIGINAL de **ldpf96** (su GitHub) con AGPL-3.0-or-later; el
+> código es 100% nuevo (no copia/portea nada de ZapZap). La *idea* está
+> INSPIRADA en ZapZap (Rafael Tosta) y así se menciona en README/NOTICE/
+> drawer, pero NUNCA como "fork/obra derivada/reescritura" ni "crédito
+> obligatorio". HEADER de red renombrado: `X-Zapdude-Signature`
+> (antes `X-ZapZap-Signature`) y UA `Zapdude-API/1`; flag de bridge
+> `window.__zapdudeApiV1` (antes `__zapZapApiV1`). El identifier de config
+> `app.zapzap.desktop` NO cambia (preserva config del usuario). Todo
+> verificado con capturas de ventana reales (PrintWindow +
+> PW_RENDERFULLCONTENT). Instalador actual:
 > `C:\Users\PC\Desktop\Projects\Zapdude\zapdude-rs\target\release\bundle\nsis\Zapdude_1.0.0_x64-setup.exe`
 > (2,943,632 bytes, ~2.81 MiB).
 
@@ -33,23 +42,29 @@
 
 ## Qué es este proyecto
 
-Reescritura completa en **Rust** del cliente **ZapZap** (original de **Rafael Tosta**,
-Python/GTK, https://github.com/rafatosta/zapzap, GPL-3.0). Este fork se distribuye
-como **AGPL-3.0** (obra derivada, §13) con crédito obligatorio a Rafael Tosta
-(see `NOTICE.md`).
+**Zapdude** = cliente de escritorio de WhatsApp Web multi-cuenta con API
+local, **código original de ldpf96** licenciado **AGPL-3.0-or-later**
+(LICENSE ya es el texto AGPL-3.0). La *idea* está INSPIRADA en el concepto
+del cliente **ZapZap** (Rafael Tosta, https://github.com/rafatosta/zapzap,
+Python/GTK) que sí es GPL: NO se reutiliza su código (stacks distintos,
+escritura desde cero), así que NO es obra derivada y no hereda
+obligaciones GPL — el crédito de inspiración es cortesía, no legal. NO
+redactar como "fork/reescritura/obra derivada". Ver NOTICE.md.
 
 Requisitos del usuario (en orden de importancia):
 1. **Multi-cuenta vital**: todas las cuentas de WhatsApp en UNA app, notificaciones
-   unificadas. Experiencia EXACTAMENTE como ZapZap original: rail lateral con
-   avatares, click en "+" agrega cuenta SIN FORMULARIOS → QR → escanear → entrar.
-   El usuario dijo: "hazlo en un principio igual [al original] y si quieres a
-   partir de ahí lo mejoras".
+   unificadas. Experiencia EXACTAMENTE como el cliente que lo inspiró: rail
+   lateral con avatares, click en "+" agrega cuenta SIN FORMULARIOS → QR →
+   escanear → entrar.
 2. **Interfaz humana** profesional — "más premium, más profesional" — que la gente
    quiera usarlo.
-3. **API local** en loopback para humanos y **agentes de IA** (REST + SSE + webhook HMAC).
-4. **Llamadas/vídeo/pantalla** funcionando (identidad Chrome 156 en JS).
-5. **Sin terminal** al abrir, **instalador Windows NSIS**, desinstalación completa.
-6. "Que no se rompa nunca": errores degradan, no crashean.
+3. **Nombre del autor visible**: el usuario quiere SU nombre (ldpf96) en
+   los créditos.
+4. **API local** en loopback para humanos y **agentes de IA** (REST + SSE + webhook HMAC).
+5. **Llamadas/vídeo/pantalla** funcionando (identidad Chrome 156 en JS).
+6. **Sin terminal** al abrir, **instalador Windows NSIS**, desinstalación completa.
+7. "Que no se rompa nunca": errores degradan, no crashean.
+8. **Publicar en GitHub** (repo `ldpf96/...` probable; usuario interesado).
 
 ## Ubicaciones
 
@@ -84,7 +99,8 @@ Requisitos del usuario (en orden de importancia):
   con secciones: **Preferencias** (tema claro, autostart, inicio minimizado),
   **Cuentas** (renombrar con refresco incremental — ver Round 7), **Configuración
   API** (toggle + badge, puerto, clave, webhook, guardar), **Agente de IA**
-  (endpoints), **Acerca de** (Zapdude, AGPL-3.0, crédito Rafael Tosta). Cierra
+  (endpoints), **Acerca de** (Zapdude, AGPL-3.0, autor ldpf96, inspiración
+  ZapZap). Cierra
   con X o Esc (el cierre ahora es INSTANTÁNEO — relayout directo). La ventana
   "settings" separada quedó eliminada del código.
 - Webviews `account-<id>`: WhatsApp Web (`https://web.whatsapp.com`), cada uno con:
@@ -140,7 +156,7 @@ Fix: reescritura "smallest matching node only" + colapso controlado de ancestros
 - Un solo initialization script combinado de ~23KB también se asoció al gris;
   los scripts van separados: startup = client_hints (5.5KB); bridge+promos van
   DIFERIDOS vía eval idempotente desde el poller de beacons (DEFER_INSTALL_EVERY_TICKS=100
-  ≈ cada 3s, chequeo `!window.__zapZapApiV1`).
+  ≈ cada 3s, chequeo `!window.__zapdudeApiV1`).
 - El transporte de eventos push (hook `window.Notification` + observer chat_list)
   quedó DESHABILITADO en el bridge. La API pasiva (status/chats/send/open-chat)
   funciona. Eventos push: pendiente de rediseño seguro.
@@ -311,6 +327,33 @@ Fix: reescritura "smallest matching node only" + colapso controlado de ancestros
   0.85 → 1.
 - **Borrado de perfil al eliminar cuenta**: `close_account_webview` ahora
   TAMBIÉN hace remove_dir_all del perfil webview/<id> (best-effort).
+
+## Round 8 (feedback 6: identidad propia + AGPL-3.0 + icono de taskbar en caché)
+
+- **IDENTIDAD/ATRIBUCIÓN (decisión del usuario)**: Zapdude es ahora presentado
+  como PROYECTO ORIGINAL de **ldpf96** con **AGPL-3.0-or-later** (LICENSE ya
+  era el texto AGPL-3.0 ✓). Todo texto "reescritura/fork/obra derivada/crédito
+  obligatorio" fue REMOVIDO: README (intro + Licencia), NOTICE.md (reescrito
+  completo: proyecto original, inspiración cortesía, sin afiliación
+  WhatsApp/Meta), CHANGELOG, Cargo.toml `authors = ["ldpf96"]`, drawer.html
+  "Acerca de" (autor ldpf96 + link + inspo ZapZap), index.html title, y
+  comentarios de fuente (mod.rs/config.rs/main.rs/window.rs/protocol.rs/
+  page_ops.rs/server.rs/events.rs/scripts/*.js/installer-hooks.nsh/
+  make_icon.py/architecture.md). Identidad de red renombrada:
+  `X-Zapdude-Signature` (antes X-ZapZap-Signature), UA `Zapdude-API/1`,
+  flag `window.__zapdudeApiV1` (antes `__zapZapApiV1`; mismo flag en
+  window.rs deferred + page_ops.rs + api_page_bridge.js). El identifier
+  config `app.zapzap.desktop` NO cambia (preserva el config del usuario).
+- **ICONO DE TASKBAR GRIS (caché de Windows)**: el exe YA llevaba el ico
+  verde/negro incrustado (PROBADO: extraction con ExtractIconEx del exe
+  instalado → 32x32/16x16 verdes con rayo negro; samples 106,233,156 /
+  4,35,26 / 20,167,109). Lo que veía el usuario gris era la CACHÉ DE ICONOS.
+  REMEDIO aplicado: matar zapdude → borrar `%LOCALAPPDATA%\IconCache.db` +
+  `iconcache_*.db` de Explorer → reiniciar explorer.exe → relanzar app →
+  **taskbar button VERDE con rayo negro visible y verificado con captura**
+  (temp v8-taskbar-zapdude.png). Nota: la app arranca a la bandeja si está
+  activo "Iniciar minimizado" (sin botón de taskbar hasta abrir la ventana).
+- Commit `6de76a6` (Round 7) y este Round 8 van en el próximo commit.
 
 ## Round 7 (feedback 5: icono viejo, cierre del drawer lento, renombrado que borra)
 

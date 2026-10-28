@@ -256,7 +256,7 @@ impl PageBridge {
     }
 
     fn bridge_expression(&self, operation: &str, args: &str) -> String {
-        let bridge = "window.__zapZapApiV1";
+        let bridge = "window.__zapdudeApiV1";
         format!(
             "JSON.stringify(function(){{ try {{ if (!({bridge}) || typeof ({bridge}.{op}) !== 'function') {{ return null; }} return {bridge}.{op}({args}); }} catch (error) {{ return {{ ok:false, error:'unexpected_error', detail: String(error && error.message || error || '') }}; }} }}())",
             bridge = bridge,
@@ -267,7 +267,7 @@ impl PageBridge {
 
     fn open_send_url(&self, phone: &str, message: Option<&str>) -> Result<(), ApiError> {
         let mut target = format!("https://web.whatsapp.com/send?phone={}", phone);
-        // Prefill semantics match the Python fork: only attach ?text= when
+        // Prefill semantics keep the URL small: only attach ?text= when
         // the message fits comfortably inside a URL.
         let prefill = message.filter(|text| text.chars().count() <= URL_PREFILL_LIMIT_CHARS);
         if let Some(text) = prefill {
@@ -419,7 +419,7 @@ mod tests {
     impl PageBridgeBuilderStub {
         #[allow(dead_code)]
         fn stub_expression(&self, op: &str) -> String {
-            format!("typeof (window.__zapZapApiV1.{}) !== 'function'", op)
+            format!("typeof (window.__zapdudeApiV1.{}) !== 'function'", op)
         }
     }
 }

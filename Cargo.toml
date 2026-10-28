@@ -4,7 +4,7 @@ version = "1.0.0"
 edition = "2021"
 description = "Zapdude - WhatsApp Web multi-account desktop client with a local automation API for people and AI agents"
 license = "AGPL-3.0-or-later"
-authors = ["Zapdude fork contributors"]
+authors = ["ldpf96"]
 
 
 

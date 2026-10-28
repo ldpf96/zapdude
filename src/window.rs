@@ -1,7 +1,8 @@
-//! ZapZap-style application shell: ONE window that hosts every webview.
+//! Zapdude application shell: ONE window that hosts every webview.
 //!
-//! Layout (like the original ZapZap desktop client):
-//!   - A narrow left rail (label `rail`) — the ZapZap logo, one circular
+//! Layout (single-window design inspired by the client whose idea
+//! motivated this project — ZapZap by Rafael Tosta; the code is original):
+//!   - A narrow left rail (label `rail`) — the Zapdude logo, one circular
 //!     avatar per account (click to switch), a "+" button to add an account
 //!     in one click, and settings/about buttons at the bottom.
 //!   - One WhatsApp Web webview per account (label `account-<id>`), each with
@@ -163,7 +164,7 @@ pub fn deferred_scripts() -> Vec<(&'static str, &'static str)> {
     };
     let mut pairs = Vec::new();
     if want("scripts2") {
-        pairs.push(("__zapZapApiV1", API_PAGE_BRIDGE_SCRIPT));
+        pairs.push(("__zapdudeApiV1", API_PAGE_BRIDGE_SCRIPT));
     }
     if want("scripts3") {
         pairs.push(("__zapdudeHidePromos", HIDE_DOWNLOAD_BANNERS_SCRIPT));
@@ -392,7 +393,7 @@ pub fn create_shell(app: &AppHandle) -> tauri::Result<()> {
         .parse()
         .expect("welcome URL must parse");
 
-    // 1. The ZapZap rail (always visible, always on the left).
+    // 1. The Zapdude rail (always visible, always on the left).
     window.add_child(
         WebviewBuilder::new("rail", WebviewUrl::External(rail_url)),
         LogicalPosition::new(0.0_f64, 0.0_f64),
@@ -447,7 +448,7 @@ pub fn create_shell(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-/// ZapZap behavior: the app opens STRAIGHT into the first account's WhatsApp
+/// The app opens STRAIGHT into the first account's WhatsApp
 /// Web (the QR if it is not logged in) — no welcome interstitial, no forms.
 /// If no account exists yet, the first one is created automatically.
 pub fn auto_open_first_account(app: &AppHandle) {

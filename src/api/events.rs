@@ -141,8 +141,8 @@ fn deliver_webhook(url: &str, body: &str, signature: &str) {
     let outcome = agent
         .post(url)
         .header("Content-Type", "application/json")
-        .header("X-ZapZap-Signature", signature)
-        .header("User-Agent", "ZapZap-API/1")
+        .header("X-Zapdude-Signature", signature)
+        .header("User-Agent", "Zapdude-API/1")
         .send(body.to_string());
     if let Err(_failure) = outcome {
         // webhook delivery failure ignored (receiver down / bad TLS / 5xx)

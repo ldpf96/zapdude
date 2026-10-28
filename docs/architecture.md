@@ -1,7 +1,8 @@
-# Arquitectura — ZapZap (Rust)
+# Arquitectura — Zapdude
 
-Documento vivo. Describe los componentes y decisiones de diseño del fork
-Rust de ZapZap (créditos: Rafael Tosta, ver NOTICE.md).
+Documento vivo. Describe los componentes y decisiones de diseño del
+proyecto (código original de ldpf96; la *idea* está inspirada en el
+concepto de ZapZap, ver NOTICE.md).
 
 ## Vista general
 
@@ -44,7 +45,7 @@ Rust de ZapZap (créditos: Rafael Tosta, ver NOTICE.md).
 | `src/api/page_ops.rs` | registry de bridges por cuenta (`page_for`), evaluaciones JS con timeout 15 s, flows open-chat/send/get-status/list-chats, beacons entrantes→eventos etiquetados |
 | `src/api/protocol.rs` | API key, errores HTTP tipados, rate limiter anillo de 60/min, HMAC firma webhook |
 | `src/api/events.rs` | ring buffer 200 + broadcast para SSE |
-| `scripts/api_page_bridge.js` | residente por documento top-level: `window.__zapZapApiV1` (pageInfo/composerInfo/sendCurrent/chats), hook de Notification→eventos, beacon `#__zapdude=` |
+| `scripts/api_page_bridge.js` | residente por documento top-level: `window.__zapdudeApiV1` (pageInfo/composerInfo/sendCurrent/chats), hook de Notification→eventos, beacon `#__zapdude=` |
 | `scripts/client_hints_fix.js` | alinea `navigator.userAgentData`/`userAgent` con Chrome estable (hacia llamadas de WhatsApp Web) |
 
 ## Decisiones clave
@@ -66,9 +67,9 @@ Rust de ZapZap (créditos: Rafael Tosta, ver NOTICE.md).
 4. **API:** loopback por defecto (`127.0.0.1`), clave obligatoria
    (excepto `healthz`), 60 req/min, cuerpo ≤ 1 MB, eventos con ring 200 +
    broadcast SSE (keep-alive 15 s), webhook opcional firmado HMAC-SHA256
-   (`X-ZapZap-Signature: sha256=…`) enviado con `ureq` v3.
+   (`X-Zapdude-Signature: sha256=…`) enviado con `ureq` v3.
 5. **Apagado limpio:** `ServerHolder` con `AtomicBool` vigilado en
-   `tokio::select!` y `shutdown_timeout(2s)`; la tray "Exit ZapZap"
+   `tokio::select!` y `shutdown_timeout(2s)`; la tray "Salir de Zapdude"
    apaga servidor y luego `app.exit(0)`. Cerrar ventanas de cuenta solo
    las oculta (notificaciones siguen).
 6. **Identidad de llamadas:** UA Chrome estable + `client_hints_fix.js`

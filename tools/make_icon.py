@@ -1,4 +1,4 @@
-"""Generate the ZapZap application icon source PNG (1024x1024, RGBA)."""
+"""Generate the Zapdude application icon source PNG (1024x1024, RGBA)."""
 
 from PIL import Image, ImageDraw
 

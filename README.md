@@ -5,16 +5,18 @@ Windows, escrito en **Rust** (Tauri 2 + WebView2). Todas tus cuentas de
 WhatsApp en una sola ventana, con una API local para que personas y agentes
 de IA puedan operarlas.
 
-Es una reescritura completa en Rust del cliente
-[ZapZap](https://github.com/rafatosta/zapzap) de **Rafael Tosta** (Python/GTK).
-La idea original es suya — ver [`NOTICE.md`](NOTICE.md). Este fork se
-distribuye bajo **AGPL-3.0**.
+**Proyecto original de [ldpf96](https://github.com/ldpf96)** — todo el código
+fue escrito desde cero para este proyecto (Rust/Tauri/WebView2). La *idea*
+está inspirada en el concepto del cliente
+[ZapZap](https://github.com/rafatosta/zapzap) de Rafael Tosta; no se copia,
+porteó ni reutiliza nada de su código. Detalles en [`NOTICE.md`](NOTICE.md).
+Licencia: **AGPL-3.0**.
 
 ![Windows 10/11](https://img.shields.io/badge/Windows-10%2F11-0078d7) ![Rust](https://img.shields.io/badge/Rust-stable-dea584) ![Tauri 2](https://img.shields.io/badge/Tauri-2-FFC131) ![Licencia](https://img.shields.io/badge/Licencia-AGPL--3.0-blue)
 
 ## Características
 
-- **Multi-cuenta vital** — rail lateral estilo ZapZap: logo, un avatar por
+- **Multi-cuenta vital** — rail lateral con logo, un avatar por
   cuenta y "+". Agregar una cuenta no pide formularios: abre su QR al
   instante. Cada cuenta tiene un **perfil WebView2 aislado**, así que las
   sesiones no se mezclan.
@@ -161,6 +163,7 @@ fábrica en Windows 11).
 
 ## Licencia
 
-**AGPL-3.0** — ver [`LICENSE`](LICENSE) y [`NOTICE.md`](NOTICE.md)
-(crédito obligatorio a Rafael Tosta, autor del ZapZap original).
-Zapdude no es un producto oficial de WhatsApp ni de Meta.
+**AGPL-3.0** — ver [`LICENSE`](LICENSE) y [`NOTICE.md`](NOTICE.md).
+Código original de [ldpf96](https://github.com/ldpf96); la *idea* está
+inspirada en ZapZap (Rafael Tosta), sin reutilizar su código. Zapdude no es
+un producto oficial de WhatsApp ni de Meta, y no está afiliado a ellos.

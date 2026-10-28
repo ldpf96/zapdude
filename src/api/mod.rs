@@ -1,4 +1,4 @@
-//! Local automation API for ZapZap (Rust).
+//! Local automation API for Zapdude.
 //!
 //! A loopback HTTP server usable by humans or agents: send messages, open
 //! chats, list chats, and stream WhatsApp Web events over SSE or a webhook.

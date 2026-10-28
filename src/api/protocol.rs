@@ -12,7 +12,7 @@ pub const LOCAL_API_VERSION: u32 = 1;
 /// Default rate limit: 60 requests per rolling 60 seconds.
 pub const RATE_LIMIT_MAX: usize = 60;
 pub const RATE_LIMIT_WINDOW_SECS: u64 = 60;
-/// Body cap for JSON request bodies (1 MB), mirrors the Python fork.
+/// Body cap for JSON request bodies (1 MB).
 pub const MAX_BODY_BYTES: usize = 1_048_576;
 
 /// Protocol error with a ready-to-serve HTTP status and opaque code.

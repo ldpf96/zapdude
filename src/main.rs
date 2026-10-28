@@ -1,6 +1,6 @@
-//! Zapdude (Rust) — WhatsApp Web desktop client with a local automation API.
-//!
-//! Shell architecture (like the original ZapZap):
+//! Zapdude — WhatsApp Web desktop client with a local automation API.
+//! Shell layout is inspired by the client whose idea motivated this
+//! project (ZapZap by Rafael Tosta); the implementation is original code.
 #![windows_subsystem = "windows"]
 //!   - ONE window ("main") hosts every webview:
 //!       * `rail`        — the narrow account rail (logo, avatars, "+")
@@ -56,7 +56,7 @@ fn enforce_single_instance() {
     unsafe {
         CreateMutexW(std::ptr::null_mut(), 0, name.as_ptr());
         if GetLastError() == ERROR_ALREADY_EXISTS {
-            eprintln!("zapdude: another ZapZap instance is already running; exiting");
+            eprintln!("zapdude: another Zapdude instance is already running; exiting");
             std::process::exit(0);
         }
     }
@@ -94,9 +94,9 @@ fn main() {
             let app_handle = app.handle().clone();
             window::create_shell(&app_handle)?;
 
-            // 3. Open the first account's WhatsApp Web right away (ZapZap
-            //    behavior: the app opens straight into the QR — no welcome
-            //    interstitial). Creates the first account if none exists.
+            // 3. Open the first account's WhatsApp Web right away (the app
+            //    opens straight into the QR — no welcome interstitial).
+            //    Creates the first account if none exists.
             //    Other accounts are created LAZILY on their first open, so
             //    startup and adding many accounts stay fast (they are "just
             //    web pages", but each WhatsApp Web is heavy; loading N of
