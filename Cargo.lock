@@ -4607,6 +4607,8 @@ dependencies = [
  "tokio-stream",
  "ureq",
  "url",
+ "webview2-com",
+ "windows-core",
  "winreg 0.55.0",
 ]
 

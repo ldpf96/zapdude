@@ -13,6 +13,10 @@ tauri-build = { version = "2", features = [] }
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"
+# PreferredColorScheme support: the shell theme is pushed into the accounts'
+# WebView2 profiles (same version family tauri/wry already resolve to).
+webview2-com = "0.39"
+windows-core = "0.62"
 
 [dependencies]
 tauri = { version = "2", features = ["tray-icon", "unstable"] }

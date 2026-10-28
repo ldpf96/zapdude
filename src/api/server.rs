@@ -448,11 +448,13 @@ async fn post_prefs(State(state): State<ApiState>, Json(body): Json<PrefsBody>) 
         eprintln!("zapdude: autostart registry update failed: {err}");
     }
     // Re-apply the theme everywhere: rail + welcome reload with the fresh
-    // preference (the drawer applied it locally already). This is what
-    // keeps the shell UNIFORM - pages that only read prefs at load would
-    // otherwise mix light/dark after a toggle.
+    // preference (the drawer applied it locally already), and the account
+    // webviews get the new color scheme pinned on their WebView2 profiles.
+    // This is what keeps the whole window UNIFORM - pages that only read
+    // prefs at load would otherwise mix light/dark after a toggle.
     if let Some(app_handle) = crate::APP_HANDLE.get() {
         crate::window::reload_shell_pages(app_handle);
+        crate::window::apply_theme_everywhere(app_handle);
     }
     json_ok(json!({
         "theme": prefs.theme,

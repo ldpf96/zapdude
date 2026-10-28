@@ -228,6 +228,9 @@ fn popup_window(
         .build();
     match built {
         Ok(window) => {
+            // Popups are real windows: their caption bar must follow the
+            // shell theme too (re-applying everywhere is idempotent).
+            apply_theme_everywhere(&handle);
             let _ = window.set_focus();
             tauri::webview::NewWindowResponse::Create { window }
         }
@@ -385,6 +388,9 @@ pub fn create_shell(app: &AppHandle) -> tauri::Result<()> {
         .resizable(true)
         .visible(false)
         .build()?;
+    // Native frame + (later) every message view must match the theme BEFORE
+    // anything is visible - otherwise the window flashes the OS look.
+    apply_theme_everywhere(app);
 
     let content = content_size(&window)?;
     let base = ui_base_url();
@@ -508,6 +514,10 @@ pub fn ensure_account_webview(
         // installed (idempotent) and return.
         let bus = crate::api::server::bus();
         crate::api::page_ops::install(&account.id, existing, bus);
+        // Keep the profile's color scheme in lockstep with the shell theme
+        // (cheap and idempotent - also covers views opened before this
+        // feature existed, e.g. the first open after upgrading).
+        apply_theme_everywhere(app);
         return Ok(());
     }
     let Some(window) = app.get_window("main") else {
@@ -527,6 +537,9 @@ pub fn ensure_account_webview(
         Ok(webview) => {
             let bus = crate::api::server::bus();
             crate::api::page_ops::install(&account.id, webview, bus);
+            // Fresh view: pin the profile's color scheme to the shell theme
+            // BEFORE WhatsApp's own boot code reads the media feature.
+            apply_theme_everywhere(app);
             Ok(())
         }
         Err(err) => {
@@ -627,6 +640,98 @@ pub fn reload_shell_pages(app: &AppHandle) {
             let _ = webview.navigate(url);
         }
     }
+}
+
+/// Push the shell theme into every WhatsApp view (accounts + popups).
+///
+/// WHY NATIVE: with no explicit theme chosen, WhatsApp Web follows the
+/// `prefers-color-scheme` media feature (its default "system" look), which
+/// used to mean "whatever Windows is set to" - so a light shell was glued
+/// to a dark chat area, and toggling light mode visibly changed only the
+/// 76px rail. The WebView2 profile API exists for exactly this: setting
+/// `ICoreWebView2Profile::PreferredColorScheme` pins the media feature to
+/// light/dark for every view on that profile, letting WhatsApp's own
+/// theming code (JS + CSS media queries) resolve the matching palette with
+/// no injected CSS to maintain against WhatsApp redesigns.
+///
+/// Idempotent (applied once per view; profiles are per account), cheap, and
+/// silent on older runtimes lacking the interface: theming may not follow
+/// there, but the app never breaks. A theme chosen INSIDE WhatsApp still
+/// wins - this emulates "follow the app look", it is not a hammer.
+#[cfg(windows)]
+pub fn apply_theme_to_message_views(app: &AppHandle) {
+    use webview2_com::Microsoft::Web::WebView2::Win32::{
+        ICoreWebView2_13, COREWEBVIEW2_PREFERRED_COLOR_SCHEME_DARK,
+        COREWEBVIEW2_PREFERRED_COLOR_SCHEME_LIGHT,
+    };
+    use windows_core::Interface;
+    let theme = crate::SHARED
+        .get()
+        .map(|shared| shared.settings.current_prefs().theme)
+        .unwrap_or_else(|| "dark".to_string());
+    let scheme = if theme.eq_ignore_ascii_case("light") {
+        COREWEBVIEW2_PREFERRED_COLOR_SCHEME_LIGHT
+    } else {
+        COREWEBVIEW2_PREFERRED_COLOR_SCHEME_DARK
+    };
+    for (label, webview) in app.webviews() {
+        // Message views only: shell pages theme themselves via CSS, and
+        // popups ride the parent account's profile, so they get the value
+        // too (setting it on every view sharing a profile is harmless).
+        if !(label.starts_with("account-") || label.starts_with("popup-")) {
+            continue;
+        }
+        let _ = webview.with_webview(move |platform| unsafe {
+            // Runs on the main thread: WebView2 COM objects are STA-bound,
+            // so touching them anywhere else is undefined behavior.
+            let controller = platform.controller();
+            let Ok(core) = controller.CoreWebView2() else {
+                return;
+            };
+            let Ok(core13) = core.cast::<ICoreWebView2_13>() else {
+                return; // pre-1165 runtime: no profile handle available
+            };
+            let Ok(profile) = core13.Profile() else {
+                return;
+            };
+            let _ = profile.SetPreferredColorScheme(scheme);
+        });
+    }
+}
+
+/// Non-Windows builds keep theming shell-only: the rail/welcome/drawer
+/// pages follow the preference through CSS on their own.
+#[cfg(not(windows))]
+pub fn apply_theme_to_message_views(_app: &AppHandle) {}
+
+/// Match the NATIVE window frames (titlebars) to the shell theme. Windows
+/// paints caption bars following the OS setting, so a light shell grew a
+/// dark system titlebar over it - jarring after a theme toggle.
+#[cfg(windows)]
+fn apply_window_theme(app: &AppHandle) {
+    let theme = crate::SHARED
+        .get()
+        .map(|shared| shared.settings.current_prefs().theme)
+        .unwrap_or_else(|| "dark".to_string());
+    let use_dark = !theme.eq_ignore_ascii_case("light");
+    for (label, window) in app.windows() {
+        if label == "main" || label.starts_with("popup-") {
+            let _ = window.set_theme(Some(if use_dark {
+                tauri::Theme::Dark
+            } else {
+                tauri::Theme::Light
+            }));
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn apply_window_theme(_app: &AppHandle) {}
+
+/// One-stop theming hook: shell pages, WhatsApp views and native frames.
+pub fn apply_theme_everywhere(app: &AppHandle) {
+    apply_window_theme(app);
+    apply_theme_to_message_views(app);
 }
 
 /// Navigate rail/welcome/settings webviews to the (possibly new) base URL.
