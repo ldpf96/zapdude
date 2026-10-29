@@ -3,6 +3,56 @@
 Notable changes to this project are documented here. The format follows
 Keep a Changelog; versioning is SemVer.
 
+## [1.2.1] - 2026-10-29
+
+### Added
+- Branded notifications: WhatsApp Web's page-level `Notification` calls are
+  captured by a deferred page hook and rendered as in-app Zapdude toasts
+  (branded stack, avatar, pass-through dismissal, click-to-open-chat) while
+  the window is visible; hidden windows raise native Windows toasts through
+  the registered Zapdude identity (AUMID `app.zapzap.desktop`) with the
+  contact avatar and click-to-restore. The toasts double as push events on
+  the API bus (`SSE`, polling, webhooks) - real notification events now flow
+  to agents.
+- Call automation: `POST /api/call` (open a chat and click the voice/video
+  call entry point, auto-opening the account webview when needed) and
+  `POST /api/call/end` (click the hang-up control of the active call
+  surface). Popup lifecycle is now observable: `popup_opened` and
+  `popup_closed` events land on the API bus, and the account page gets an
+  idempotent recovery prompt (`callRecover`) the moment its popup dies
+  without WhatsApp's own end-call flow.
+- Chat-opening automation goes through the search drawer (with retry beats
+  and a robust pick for own-number and unsaved-number results). The old
+  `?send` deep link trapped cold-started webviews on an unresolvable
+  redirect (about:blank) and is gone from the flow.
+- Debug harness: `ZAPDUDE_DEBUG_EVAL=1` unlocks `POST /api/_debug/eval`
+  (live JS evaluation in account webviews), `GET /api/_debug/windows`,
+  `POST /api/_debug/windows/{label}/close` and `POST /api/_debug/emit`
+  (synthetic bus events). All key-gated and loopback-only, never rate
+  limited (so live sessions can poll), production-safe by default.
+- Second-launch behavior: when Zapdude already lives in the tray, a second
+  activation (desktop shortcut, Start Menu, exe double click) now pings the
+  running instance through `POST /api/ui/show`, which brings the window
+  back - no more dead clicks. Autostart migration: the Run key entry now
+  carries `/startminimized`, so only auto-launched instances stay hidden;
+  manual clicks always open the window.
+
+### Fixed
+- Media download: the promo hider no longer matches bare "Download"/
+  "Descargar" buttons outside the logged-out landing flow. The media
+  viewer overlay lives outside the protected chat zone and carries a real
+  Download button; the oversweep erased it (the download option that
+  vanished). Dialogs and menus are now protected zones as well.
+- Chat list scraping: WhatsApp moved the list to `data-testid="list-item-N"`
+  grid rows; the scraper follows the new markup (plus the dedicated unread
+  badge test id) and reports `unread_count` per chat.
+- Recreated account webviews kept the original page bridge, so every
+  automation call after a close/re-open cycle timed out against a dead
+  webview. Bridges are now replaced on recreation and cancelled (poller
+  exits) when the webview goes away.
+- Composer readiness tolerates the deferred-bridge installation gap after
+  page navigation/reloads (wait state, not failure).
+
 ## [1.2.0] - 2026-10-28
 
 ### Added

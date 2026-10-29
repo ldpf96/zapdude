@@ -1,25 +1,96 @@
 # Session status - Zapdude (Rust)
 
 > Continuity document for AI agents and future sessions. Last updated:
-> 2026-10-28 (v1.2.0 shipped).
+> 2026-10-29 (working tree past v1.2.0, pre-release; features below need
+> a version bump once the user signs off).
 
 > **STATE OF THE WORLD**: v1.2.0 is live at
 > https://github.com/ldpf96/zapdude/releases/tag/v1.2.0 with CI-built
-> artifacts (macOS .dmg aarch64 + x64, Windows NSIS). The app-wide
-> theme feature ships in this version. The repo is public, main matches
-> the release tag (fdc39dd). Download site live at
-> https://ldpf96.github.io/zapdude-site/ (repo ldpf96/zapdude-site,
-> GitHub Pages from main, root folder; download buttons resolve the
-> latest release assets through the GitHub API; bilingual ES/EN).
+> artifacts (macOS .dmg aarch64 + x64, Windows NSIS). Since then, a fresh
+> feature set was built and live-verified against the installed runtime
+> (see "What changed in v1.2.1" below); it is committed but NOT yet
+> released. The app is named **Zapdude** ("dude" lowercase, first letter
+> capital). Repo text is ENGLISH; chat with the user is Spanish.
 
-> The app is named **Zapdude** ("dude" lowercase, first letter
-> capital: it is exactly "Zapdude", NEVER "ZapDude").
-> All project text (UI, docs, comments, release notes, release bodies)
-> is in ENGLISH with plain punctuation (no em dashes; explicit user
-> requirement). Project copy must read like product text: factual
-> statements, normal-length credits (ZapZap by Rafael Tosta as design
-> reference, AI tooling named plainly). No confessional phrasing - the
-> user explicitly rejected "honest origin story" style wording.
+## What changed in v1.2.1 (working epoch, knowledge for future sessions)
+
+- **Branded notifications (dual).** Page-level `Notification` on WhatsApp
+  webviews is captured by a deferred hook (`scripts/notification_hook.js`,
+  flag `__zapdudeNotifyV1`; the DOCUMENT-START variant of this hook once
+  killed startup - the deferred slot is the proven safe install point).
+  The stub ships notification events through the beacon transport into
+  the bus (kind "incoming", payload kind "notification", which kept the
+  documented "incoming" contract; the ORIGINAL constructor is never
+  called, so WebView2 never shows its web-style toast). `src/notifier.rs`
+  routes them: main window visible -> the `toast-overlay` child webview
+  (branded stack, `ui/toast.html`, polling `/api/ui/toasts?since=N`,
+  click -> `/api/ui/toast/action` -> account focus + page-level onclick
+  re-dispatch through `window.__zapdudeFireNotificationClick(tag)`, idle
+  -> `/api/ui/toast/release`); main window hidden -> native Windows toast
+  via `tauri-winrt-notification` direct (AUMID `app.zapzap.desktop` =
+  the registered Start Menu identity; the notification plugin's default
+  fell back to the "powershell" attribution the user flagged) with the
+  contact avatar cached in `<data>/toast-icons/`.
+- **Call surface observations (live, key facts).** As of the observed
+  build, placing a call from the webview did NOT open a popup for our
+  automated clicks (no window.open observed at any sample; 900 ms
+  samples over windows). The call log lands as in-chat bubbles
+  (`voip_icce_bubble_1on1_call`, `call-log-system-message`,
+  `call-log-icon-chip`) and the callee side registered a real ringing +
+  missed-call notification (captured live on the callee account, hook
+  working). The user reports the manual call UI as an in-page draggable
+  square ("cuadradito"); the passive recorder `scripts/call_anchor.js`
+  (flag `__zapdudeCallAnchor`) ships a `call_surface` event through the
+  bridge whenever a call surface mounts - the next natural user call
+  will give the exact markup to anchor it. Popup windows still exist in
+  the app (real windows, `popup-*` labels, shared environment, native
+  drag): paths that DO call window.open (media popups and older call
+  flows) are handled by `popup_window()` with lifecycle tracking
+  (POPUP_INDEX + Destroyed -> `popup_opened`/`popup_closed` events +
+  `callRecover` reconciliation prompt on the account page; the recovery
+  clicks the "volviendo a la llamada/return to call" control when
+  present).
+- **Call/chat automation API.** `POST /api/call` opens the chat (drawer
+  search flow, auto-opens the account webview when missing) and clicks
+  the voice/video header button; `POST /api/call/end` clicks hang-up.
+  Chat opening rewrote: `?send?phone=` deep links DROP cold webviews to
+  about:blank (unresolvable redirect); the drawer flow
+  (`openChatByPhone` -> typing beat -> `pickPhoneResult` -> composer)
+  works from any state and matches unsaved numbers AND the own-number
+  self-chat row (`message-yourself-row`). Verified live end to end:
+  SELF-SEND on account-1 and CROSS-SEND account-2 -> +51 number both
+  delivered real WhatsApp messages.
+- **Second launch shows the window.** Single-instance mutex now signals
+  the first instance through `POST /api/ui/show` (config-file port,
+  retries). Autostart Run key value became `"<exe>" /startminimized`;
+  only auto-launched processes honor the start-minimized pref: manual
+  clicks always open the window. Verified: the Run key migration happens
+  best-effort at every startup (prefs on) and /api/ui/show works live.
+- **Bridge lifecycle fixed.** `PAGE_BRIDGES`: closing and re-creating an
+  account webview KEPT the first bridge (dead target, eval timeouts
+  forever). New `page_ops::replace`/`remove`; the beacon poller exits
+  when the bridge is cancelled (`cancelled` flag on PageBridge).
+  Verified: account-2 close/open cycle recovers.
+- **Chat list scraper follows the 2025-10 markup.** Rows:
+  `#pane-side [data-testid^="list-item"]`, title `span[title]` first,
+  snippet `cell-frame-secondary span[title]`, unread badge
+  `[data-testid="icon-unread-count"]` (digits from its aria-label,
+  locale-independent). Verified live with real chats (288/311 unread
+  group).
+- **Debug harness.** Under `ZAPDUDE_DEBUG_EVAL=1`:
+  `POST /api/_debug/eval` (raw expression eval via the page bridge with
+  the defensive wrapper), `GET /api/_debug/windows` (windows + webviews),
+  `POST /api/_debug/windows/{label}/close` (shell core refused; account
+  labels cancel their bridge first), `POST /api/_debug/emit` (synthetic
+  bus events for SSE/webhook/toast testing). Debug auth skips the rate
+  limiter (monitors poll fast) but keeps the API key + enabled checks.
+  Helper scripts live in `tools/` (see debug-eval.ps1 for evaluation;
+  sse-listen.cmd + webhook-receiver.ps1 = the verification battery).
+- **Promo hider hardened.** The generic sweep abandoned the bare
+  "Download"/"Descargar" exact-text match (it erased the REAL Download
+  button of the in-page media viewer overlay, the "download option
+  disappears" report); dialogs/menus are protected zones now. The
+  landing flow keeps its stricter copy+card logic.
 
 ## What changed in v1.2.0 (knowledge for future sessions)
 
@@ -108,8 +179,12 @@
    breaks WebView2 painting (do not ship custom args).
 3. Keep document-start scripts minimal; install the rest deferred
    through the beacon poller with per-script idempotency flags.
+   (The Notification hook in particular MUST stay deferred: at
+   document-start it once killed WhatsApp startup.)
 4. WebView2 `ExecuteScript` arrives double encoded when the value is a
-   String - unwrap twice.
+   String - unwrap twice. Also: a returned PROMISE resolves fine, but
+   plain JS objects jumped straight from async code inside one eval do
+   not ship - keep browser-op scripts synchronous, pace with the host.
 5. WebView2 COM work MUST happen on the main thread: use
    `webview.with_webview(...)` (that is what the theme pinning uses).
 6. Debug harness: PrintWindow with `PW_RENDERFULLCONTENT` (2) captures
@@ -118,6 +193,13 @@
 7. Check `github.com/settings/tokens` facts before claiming platform
    limits: several past conclusions ("macOS impossible") were wrong
    and got fixed in the same session they were re-verified.
+8. Bridge ops receive POSITIONAL arguments as rendered by
+   `bridge_expression` - passing an object-shaped args string makes the
+   op see "[object Object]" (the "phone_too_short" live bug).
+9. The `?send?phone=` WhatsApp deep link can drop a cold webview onto
+   about:blank; the drawer search flow is the reliable opener.
+10. API rate limit (60/min) is shared with live debug monitors - the
+    debug auth path skips it, keep debug polling on that path.
 
 ## Git / GitHub / auth state
 
@@ -139,18 +221,27 @@
 
 ## Pending (next candidates, user decides)
 
-1. Linux builds: add an ubuntu matrix row (webkit2gtk-4.1 dependency
+1. Call surface anchor: once the passive recorder sees a real call
+   surface (user places any call), pin the in-page call panel to its
+   default position (drop the drag) - `scripts/call_anchor.js` phase 2.
+2. Push-event coverage from the SERVICE WORKER path (hidden-window
+   notifications may only fire through sw.js; the current capture covers
+   page-level Notification calls). No COM interception attempted: the
+   native toast fallback covers the hidden case already.
+3. `own_number`: a first-class endpoint for each account's own number
+   (DOM does not expose it; candidates: WAM state, settings deep-dive).
+   The cross-send direction account-1 -> account-2 needs the +1 callee
+   number in the meantime.
+4. Linux builds: add an ubuntu matrix row (webkit2gtk-4.1 dependency
    set) to `.github/workflows/release.yml`.
-2. macOS: make the chat area follow the in-app theme (WebKit has no
+5. macOS: make the chat area follow the in-app theme (WebKit has no
    profile-level color-scheme API like WebView2; would need CDP or CSS
    work), call pop-out windows on macOS (window.open handling without
    WebView2 environment sharing), mic/cam usage descriptions in the
-   macOS Info.plist.
-3. Mobile (Android/iOS): phase 2 - the multi-webview shell needs a
-   redesign (one window = one webview on mobile). The
-   `icons/android` and `icons/iOS` assets are already generated.
-4. Push events (Notification hook) redesign; passive API works.
-5. User live tests on the family Mac (first install + xattr step).
+   macOS Info.plist, notification path (NSUserNotification).
+6. Mobile (Android/iOS): phase 2 - the multi-webview shell needs a
+   redesign (one window = one webview on mobile).
+7. Version bump + release when the user signs off (v1.2.1 builds).
 
 ## Useful commands
 

@@ -18,6 +18,7 @@ ZapZap concept by Rafael Tosta, see NOTICE.md).
 |  |  rail.html      : logo (toggles drawer), avatars, "+"          |  |
 |  |  account-<id>   : one WhatsApp Web webview per account         |  |
 |  |  drawer         : full screen options panel, created on demand |  |
+|  |  toast-overlay  : notification stack, created on demand        |  |
 |  |  welcome        : branded backdrop / empty-state destination   |  |
 |  +----------------------------------------------------------------+  |
 |                                                                      |
@@ -90,15 +91,29 @@ environment, so the session and cookies are the same one the page uses.
    back via `eval_with_callback`.
 2. Degrade, never crash: a missing bridge or moved WhatsApp markup
    becomes a structured API error (`bridge_unavailable`), never a panic.
-3. Notification hook: the bridge replaces `window.Notification` and
-   hooks page mutations (chat list observer) to surface new message
-   events, each tagged with the account id that produced it.
-4. Beacon fallback: when the sync eval path dies, the page mirrors
+3. Notification route: the hook (`scripts/notification_hook.js`, deferred)
+   replaces `window.Notification` with a stub that SHIPS the notification
+   (title/body/icon/tag) through the bridge instead of letting WebView2
+   render its web-style toast. `src/notifier.rs` turns bus events into
+   the branded surface: `toast-overlay` child webview while the main
+   window is visible, native Windows toast (registered AUMID
+   `app.zapzap.desktop`) while it is hidden; click paths reconcile the
+   account/chat through `/api/ui/toast/action`.
+4. Call automation: `/api/call` and `/api/call/end` drive the same page
+   surface. Pop-out windows (whenever WhatsApp calls window.open) are
+   real native windows sharing the account environment; their lifecycle
+   lands as `popup_opened`/`popup_closed` events and a page-side
+   `callRecover` reconciliation runs when a popup dies without
+   WhatsApp's end-call flow.
+5. Beacon fallback: when the sync eval path dies, the page mirrors
    pending responses into `location.hash = #__zapdude=<payload>` and the
-   host poller consumes them.
-5. Events: ring buffer of 200 (polled `GET /api/events?since=`),
+   host poller consumes them. Bridges are replaced when a webview is
+   re-created and cancelled on close (the poller exits instead of
+   polling a dead target).
+6. Events: ring buffer of 200 (polled `GET /api/events?since=`),
    broadcast SSE (keep alive 15 s), optional HMAC-SHA256 signed webhook
-   (`X-Zapdude-Signature: sha256=...`) delivered with `ureq` v3.
+   (`X-Zapdude-Signature: sha256=...`) delivered with `ureq` v3. All
+   verified live with synthetic bus events (see tools/).
 
 ## Multi account model
 
