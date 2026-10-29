@@ -425,11 +425,6 @@ fn relayout(window: &Window<Wry>) {
                     LogicalSize::new(content.width, content.height),
                 )
             }
-        } else if label == "toast-overlay" {
-            // The notification stack rides the top-right of the content area;
-            // the watchdog must hold it there instead of parking it.
-            let geometry = crate::notifier::overlay_slot(&content);
-            (geometry.0, geometry.1)
         } else if active.as_deref() == Some(label.as_str()) {
             (
                 LogicalPosition::new(RAIL_WIDTH, 0.0_f64),
@@ -533,17 +528,22 @@ pub fn create_shell(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-/// The app opens STRAIGHT into the first account's WhatsApp
-/// Web (the QR if it is not logged in) - no welcome interstitial, no forms.
-/// If no account exists yet, the first one is created automatically.
-pub fn auto_open_first_account(app: &AppHandle) {
+/// Startup opens EVERY enabled account (not just the first): parked webviews
+/// keep receiving messages and firing notifications, so all accounts are
+/// reachable and notify from the first second - without a manual click per
+/// account (the user hit exactly that: account 2 stayed silent until they
+/// opened it manually). The FIRST account takes the visible content slot;
+/// the rest park outside the viewport (still rendered). Every account is
+/// "just a web page", so early-bird memory cost grows with account count;
+/// if that ever hurts, a lazy-accounts preference can return.
+pub fn auto_open_all_accounts(app: &AppHandle) {
     let Some(shared) = crate::SHARED.get().cloned() else {
         return;
     };
     let handle = app.clone();
     std::thread::spawn(move || {
         // A single branded-splash beat (the styled welcome) before the
-        // account takes over - no long blank interstitial.
+        // accounts take over - no long blank interstitial.
         std::thread::sleep(std::time::Duration::from_millis(150));
         let mut accounts = shared.settings.current_accounts();
         if accounts.is_empty() {
@@ -558,8 +558,28 @@ pub fn auto_open_first_account(app: &AppHandle) {
             }
             accounts = vec![account];
         }
-        if let Err(err) = open_account_webview(&handle, &accounts[0]) {
-            eprintln!("zapdude: could not open the first account: {err}");
+        // Sequential creation: the FIRST enabled account ends up visible,
+        // every other one is created and immediately parked by relayout.
+        let mut first: Option<crate::config::AccountConfig> = None;
+        for account in accounts.iter().filter(|account| account.enabled) {
+            if first.is_none() {
+                first = Some(account.clone());
+                if let Err(err) = open_account_webview(&handle, account) {
+                    eprintln!("zapdude: could not open account '{}': {}", account.id, err);
+                }
+                continue;
+            }
+            if let Err(err) = ensure_account_webview(&handle, account) {
+                eprintln!("zapdude: could not open account '{}': {}", account.id, err);
+            }
+        }
+        // Belt and suspenders: make sure the FIRST account holds the
+        // content slot even if a later open flow raced it.
+        if let Some(account) = first {
+            let _ = show_content(
+                &handle,
+                &account_webview_label(&account.id),
+            );
         }
     });
 }

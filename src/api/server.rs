@@ -51,7 +51,6 @@ use crate::config::{self, AccountConfig, SettingsState};
 const RAIL_HTML: &str = include_str!("../../ui/rail.html");
 const WELCOME_HTML: &str = include_str!("../../ui/welcome.html");
 const DRAWER_HTML: &str = include_str!("../../ui/drawer.html");
-const TOAST_HTML: &str = include_str!("../../ui/toast.html");
 
 /// Holder guarded by a Mutex so the server can be stopped and restarted
 /// (port changes) without losing the slot.
@@ -262,13 +261,9 @@ fn router(state: ApiState) -> Router {
         .route("/", get(serve_rail))
         .route("/welcome", get(serve_welcome))
         .route("/drawer", get(serve_drawer))
-        .route("/toast", get(serve_toast))
         .route("/api/ui/quit", post(ui_quit))
         .route("/api/ui/drawer", post(ui_toggle_drawer))
         .route("/api/ui/show", post(ui_show))
-        .route("/api/ui/toasts", get(ui_toasts))
-        .route("/api/ui/toast/action", post(ui_toast_action))
-        .route("/api/ui/toast/release", post(ui_toast_release))
         // --- Management endpoints (no auth, used by the shell UI + local tools) ---
         .route("/api/healthz", get(healthz))
         .route("/api/prefs", get(get_prefs).post(post_prefs))
@@ -364,45 +359,6 @@ async fn serve_welcome() -> impl IntoResponse {
 
 async fn serve_drawer() -> impl IntoResponse {
     axum::response::Html(DRAWER_HTML)
-}
-
-/// The in-app toast overlay page (branded notifications stack).
-async fn serve_toast() -> impl IntoResponse {
-    axum::response::Html(TOAST_HTML)
-}
-
-/// Queue snapshot for the toast overlay page: everything past `since`.
-async fn ui_toasts(RawQuery(raw): RawQuery) -> (StatusCode, Json<Value>) {
-    let params = parse_query_to_map(raw.as_deref());
-    // A missing/invalid cursor reads as zero: fresh mounting pages want the
-    // current queue (the release endpoint keeps the queue empty of stale
-    // items, so a fresh page never sees ancient history anyway).
-    let since = params
-        .get("since")
-        .and_then(|value| value.parse::<u64>().ok())
-        .unwrap_or(0);
-    (StatusCode::OK, Json(crate::notifier::toasts_snapshot(since)))
-}
-
-/// Toast interaction (click / dismiss) from the overlay page.
-async fn ui_toast_action(Json(body): Json<Value>) -> (StatusCode, Json<Value>) {
-    let Some(seq) = body.get("seq").and_then(Value::as_u64) else {
-        return json_error(&ApiError::bad_request("seq is required"));
-    };
-    let action = body.get("action").and_then(Value::as_str).unwrap_or("dismiss");
-    crate::notifier::toast_action(seq, action);
-    json_ok(json!({ "seq": seq, "action": action }))
-}
-
-/// The overlay page calls this when its stack drained and went idle: the
-/// host clears the queue and closes the overlay webview (keeps the shell
-/// free of hidden full-height children between notification bursts).
-async fn ui_toast_release() -> (StatusCode, Json<Value>) {
-    let Some(app_handle) = crate::APP_HANDLE.get() else {
-        return json_error(&ApiError::internal("app handle not available"));
-    };
-    crate::notifier::toast_release(app_handle);
-    json_ok(json!({ "released": true }))
 }
 
 /// Toggle the options drawer (brand-logo click in the rail).

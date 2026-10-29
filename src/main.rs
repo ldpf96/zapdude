@@ -157,14 +157,11 @@ fn main() {
             let app_handle = app.handle().clone();
             window::create_shell(&app_handle)?;
 
-            // 3. Open the first account's WhatsApp Web right away (the app
-            //    opens straight into the QR - no welcome interstitial).
-            //    Creates the first account if none exists.
-            //    Other accounts are created LAZILY on their first open, so
-            //    startup and adding many accounts stay fast (they are "just
-            //    web pages", but each WhatsApp Web is heavy; loading N of
-            //    them at once made everything crawl).
-            window::auto_open_first_account(&app_handle);
+            // 3. Open EVERY enabled account right away (the first takes the
+            //    viewport; the rest park, still alive - notifications and
+            //    message state stay live for all accounts from the start,
+            //    no manual per-account click needed).
+            window::auto_open_all_accounts(&app_handle);
 
             // 4. Tray icon with per-account entries.
             window::initialize_tray(app);

@@ -6,14 +6,16 @@ Keep a Changelog; versioning is SemVer.
 ## [1.2.1] - 2026-10-29
 
 ### Added
-- Branded notifications: WhatsApp Web's page-level `Notification` calls are
-  captured by a deferred page hook and rendered as in-app Zapdude toasts
-  (branded stack, avatar, pass-through dismissal, click-to-open-chat) while
-  the window is visible; hidden windows raise native Windows toasts through
-  the registered Zapdude identity (AUMID `app.zapzap.desktop`) with the
-  contact avatar and click-to-restore. The toasts double as push events on
-  the API bus (`SSE`, polling, webhooks) - real notification events now flow
-  to agents.
+- Branded notifications, ONE uniform surface: WhatsApp Web's page-level
+  `Notification` calls are captured by a deferred page hook and raised as
+  native Windows toasts through the registered Zapdude identity (AUMID
+  `app.zapzap.desktop`), with the contact avatar when the payload carries
+  one (both CDN URLs and inline data:image icons) and click-to-restore.
+  One look for every state - window visible, hidden or in the tray. The
+  toasts double as push events on the API bus (`SSE`, polling, webhooks).
+  (An earlier dual design - in-app overlay when visible, native when
+  hidden - read as "different notifications per account" in real use and
+  was replaced by the uniform route.)
 - Call automation: `POST /api/call` (open a chat and click the voice/video
   call entry point, auto-opening the account webview when needed) and
   `POST /api/call/end` (click the hang-up control of the active call

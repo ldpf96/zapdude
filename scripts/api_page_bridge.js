@@ -460,32 +460,44 @@
             /**
              * Reconcile the page after its call popup vanished without
              * going through WhatsApp's own end-call flow (the popup X
-             * button bypasses it and leaves the chat page stuck "in call"
-             * with nothing visible). The host calls this the moment a
-             * popup- window is destroyed. When WhatsApp kept a
-             * "return to call / volviendo a la llamada" control around the
-             * orphaned call state, clicking it makes WhatsApp itself tear
-             * the dead call down (it re-issues the popup as a closed
-             * session and the state clears).
+             * button bypasses it, the call keeps ringing/burning on the
+             * page side, and the "Llamada / Llamando..." pill stays on
+             * screen with nothing reachable - the stuck state seen live).
+             *
+             * Phase 1: click the leftover pill (WhatsApp then re-issues
+             * its own call window/shutdown path). Phase 2 (probe mode):
+             * report whether a pill would still match, without clicking -
+             * the host uses it to decide a page reload as the failsafe.
              */
-            callRecover: function () {
+            callRecover: function (probeOnly) {
                 try {
-                    var pattern = /volviendo\s*a\s*la\s*llamada|volver\s*a\s*la\s*llamada|return\s*to\s*call|rejoin|continuar\s*la\s*llamada/i;
-                    var candidates = document.querySelectorAll('[role="button"], button, [aria-label]');
+                    var pill_pattern = /\b(\d+\s*min|llamando|calling|reanudar|volviendo|volver a la llamada|return to call|rejoin|llamada en curso|llamada actual|current call|rejoin call)/i;
+                    var candidates = document.querySelectorAll(
+                        'div[role="button"], button, [role="button"]'
+                    );
+                    var probe = [];
                     for (var index = 0; index < candidates.length; index++) {
                         var node = candidates[index];
-                        var composed = String(node.getAttribute('aria-label') || '') + ' ' + String(node.textContent || '').slice(0, 160);
-                        if (pattern.test(composed)) {
+                        try {
+                            var label = String(node.getAttribute('aria-label') || '');
+                            var text = String(node.textContent || '').replace(/\s+/g, ' ').trim();
+                            var composed = (label + ' ' + text).trim();
+                            if (!pill_pattern.test(composed)) {
+                                continue;
+                            }
+                            var rect = node.getBoundingClientRect();
+                            if (rect.width < 40 || rect.height < 30) {
+                                continue;
+                            }
+                            probe.push(composed.slice(0, 60));
+                            if (probeOnly) {
+                                return { ok: true, in_call: true, probe: probe };
+                            }
                             node.click();
-                            return { ok: true, recovered: true, clicked: composed.trim().slice(0, 48) };
-                        }
+                            return { ok: true, recovered: 'clicked', probe: probe.slice(0, 6) };
+                        } catch (_candidateError) {}
                     }
-                    return {
-                        ok: true,
-                        recovered: false,
-                        url: decodeFinalUrl(),
-                        title: String(document.title || ''),
-                    };
+                    return { ok: true, in_call: false, probe: probe.slice(0, 6) };
                 } catch (error) {
                     return emitError('callRecover', error);
                 }

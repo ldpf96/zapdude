@@ -478,6 +478,9 @@ impl PageBridge {
 }
 
 /// Decode a `?text=` prefill value for sandbox URLs.
+/// (Kept from the pre-drawer URL flow; the drawer flow does not need it
+/// today, the tests lock its behavior for whenever it returns.)
+#[cfg_attr(not(test), allow(dead_code))]
 fn encode_query_component(raw: &str) -> String {
     let mut encoded = String::with_capacity(raw.len());
     for byte in raw.bytes() {
