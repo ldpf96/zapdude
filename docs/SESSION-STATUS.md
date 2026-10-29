@@ -128,13 +128,33 @@
 
 ## Current user state
 
-- The user runs the installed exe `C:\Users\PC\AppData\Local\Zapdude\
-  zapdude.exe` (v1.2.0, verified via `/api/healthz`). The app usually
-  lives in the tray (prefs: autostart + startMinimized true).
+- AFTER the v1.2.1 workflow: the user's PC still runs the DEV build
+  (debug binary at `target\debug\zapdude.exe`, started through
+  `tools\run-dev.cmd`, console captured to `zapdude-console.log`, env
+  `ZAPDUDE_DEBUG_EVAL=1`). When that PC session ends, the dev instance
+  dies and NOTHING runs unless the user installs v1.2.1
+  (`Zapdude_1.2.1_x64-setup.exe` from the release) - until then a
+  manual double click of the OLD installed exe (v1.2.0 at
+  `C:\Users\PC\AppData\Local\Zapdude\zapdude.exe`) brings back the
+  previous behavior. Recommend installing v1.2.1 first thing next
+  session (single instance mutex: quit the running instance first,
+  install, relaunch).
+- The loopback API stays ENABLED in
+  `%APPDATA%\app.zapzap.desktop\config.json` (key unchanged, port
+  29977) after the day's battery; the user knows it runs.
+- All v1.2.1 features were verified against the DEV build with real
+  traffic and real sends (self-send, cross-send account-2 -> +51). The
+  installed v1.2.0 exe will gain them only through the v1.2.1
+  installer.
+- The family Mac project (sister-in-law, other user): macOS **13.7.8
+  Ventura, Intel**. The `Zapdude_1.2.1_x64.dmg` was handed over (user's
+  downloads folder, SHA-256 verified against the release asset). The
+  Ventura run is the pending live test of the macOS 13 minimum gamble:
+  awaiting their report (window up, QR, chats readable). If Ventura
+  misbehaves: plan B is redesigning the shell for macOS (one window
+  per account) or asking for a macOS 14 update.
 - The user prefers Spanish in chat; repo text stays English.
-- Windows is in dark mode (`AppsUseLightTheme = 0`); the user still
-  chose the light token and the in-app theme switches it (now correctly
-  through the whole window).
+- Windows is in dark mode; the in-app theme follows its preference.
 
 ## Requirements from the user (stable, in importance order)
 
@@ -231,27 +251,36 @@
 
 ## Pending (next candidates, user decides)
 
-1. Call surface anchor: once the passive recorder sees a real call
-   surface (user places any call), pin the in-page call panel to its
-   default position (drop the drag) - `scripts/call_anchor.js` phase 2.
-2. Push-event coverage from the SERVICE WORKER path (hidden-window
+1. Install v1.2.1 on the user's Windows PC FIRST (replace the v1.2.0
+   install; remember the single instance mutex). Everything verified
+   today ran on the dev build, not the installed one.
+2. Family Mac report: did the v1.2.1 x64 DMG open and pair on Ventura
+   13.7.8? (lsmin 13.0 experiment; the release body carries the caveat -
+   feed the outcome into docs and, if needed, plan the macOS shell
+   redesign.)
+3. Call surface anchor phase 2: the passive recorder
+   (`scripts/call_anchor.js`) ships `call_surface` events whenever a
+   real call surface mounts. With the user's next natural call, take
+   that data and pin the in-page call panel (no drag inside the app
+   box). The popup path is already recovered automatically
+   (`callRecover` clicked the pill live; the reload failsafe exists but
+   remained unused so far).
+4. `own_number`: a first-class endpoint for each account's own number
+   (DOM does not expose it; candidates: WAM state, settings deep-dive).
+   The cross-send direction account-1 -> account-2 still needs the +1
+   callee number the user has not shared yet.
+5. Push-event coverage from the SERVICE WORKER path (hidden-window
    notifications may only fire through sw.js; the current capture covers
    page-level Notification calls). No COM interception attempted: the
    native toast fallback covers the hidden case already.
-3. `own_number`: a first-class endpoint for each account's own number
-   (DOM does not expose it; candidates: WAM state, settings deep-dive).
-   The cross-send direction account-1 -> account-2 needs the +1 callee
-   number in the meantime.
-4. Linux builds: add an ubuntu matrix row (webkit2gtk-4.1 dependency
+6. macOS toast path (NSUserNotification) so Mac builds float avatars like
+   Windows does now; also call pop-out windows on macOS (window.open
+   handling without WebView2 environment sharing).
+7. Linux builds: add an ubuntu matrix row (webkit2gtk-4.1 dependency
    set) to `.github/workflows/release.yml`.
-5. macOS: make the chat area follow the in-app theme (WebKit has no
-   profile-level color-scheme API like WebView2; would need CDP or CSS
-   work), call pop-out windows on macOS (window.open handling without
-   WebView2 environment sharing), mic/cam usage descriptions in the
-   macOS Info.plist, notification path (NSUserNotification).
-6. Mobile (Android/iOS): phase 2 - the multi-webview shell needs a
-   redesign (one window = one webview on mobile).
-7. Version bump + release when the user signs off (v1.2.1 builds).
+8. User-side checks they agreed to feel: close-to-tray then double
+   click the installed icon (window must come back), and a media
+   download sanity pass (the option must stay visible).
 
 ## Useful commands
 
