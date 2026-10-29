@@ -37,6 +37,7 @@ use serde_json::{json, Value};
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::{Stream, StreamExt};
+use tauri::Manager;
 
 use super::events::ApiEventBus;
 use super::page_ops::page_for;
@@ -50,6 +51,7 @@ use crate::config::{self, AccountConfig, SettingsState};
 const RAIL_HTML: &str = include_str!("../../ui/rail.html");
 const WELCOME_HTML: &str = include_str!("../../ui/welcome.html");
 const DRAWER_HTML: &str = include_str!("../../ui/drawer.html");
+const TOAST_HTML: &str = include_str!("../../ui/toast.html");
 
 /// Holder guarded by a Mutex so the server can be stopped and restarted
 /// (port changes) without losing the slot.
@@ -260,8 +262,13 @@ fn router(state: ApiState) -> Router {
         .route("/", get(serve_rail))
         .route("/welcome", get(serve_welcome))
         .route("/drawer", get(serve_drawer))
+        .route("/toast", get(serve_toast))
         .route("/api/ui/quit", post(ui_quit))
         .route("/api/ui/drawer", post(ui_toggle_drawer))
+        .route("/api/ui/show", post(ui_show))
+        .route("/api/ui/toasts", get(ui_toasts))
+        .route("/api/ui/toast/action", post(ui_toast_action))
+        .route("/api/ui/toast/release", post(ui_toast_release))
         // --- Management endpoints (no auth, used by the shell UI + local tools) ---
         .route("/api/healthz", get(healthz))
         .route("/api/prefs", get(get_prefs).post(post_prefs))
@@ -276,9 +283,17 @@ fn router(state: ApiState) -> Router {
         .route("/api/message", post(message))
         .route("/api/open-chat", post(open_chat))
         .route("/api/chats", get(chats))
+        .route("/api/call", post(call_start))
+        .route("/api/call/end", post(call_end))
         .route("/api/events", get(events))
         .route("/api/events/stream", get(events_stream))
         .route("/api/webhook", get(webhook_get).post(webhook_post))
+        // --- Debug harness: unreachable in production (env-gated handlers,
+        //     each call additionally requires the API key). ---
+        .route("/api/_debug/eval", post(debug_eval))
+        .route("/api/_debug/windows", get(debug_windows))
+        .route("/api/_debug/windows/{label}/close", post(debug_close_window))
+        .route("/api/_debug/emit", post(debug_emit))
         .with_state(state)
         .layer(DefaultBodyLimit::max(MAX_BODY_BYTES))
 }
@@ -351,6 +366,45 @@ async fn serve_drawer() -> impl IntoResponse {
     axum::response::Html(DRAWER_HTML)
 }
 
+/// The in-app toast overlay page (branded notifications stack).
+async fn serve_toast() -> impl IntoResponse {
+    axum::response::Html(TOAST_HTML)
+}
+
+/// Queue snapshot for the toast overlay page: everything past `since`.
+async fn ui_toasts(RawQuery(raw): RawQuery) -> (StatusCode, Json<Value>) {
+    let params = parse_query_to_map(raw.as_deref());
+    // A missing/invalid cursor reads as zero: fresh mounting pages want the
+    // current queue (the release endpoint keeps the queue empty of stale
+    // items, so a fresh page never sees ancient history anyway).
+    let since = params
+        .get("since")
+        .and_then(|value| value.parse::<u64>().ok())
+        .unwrap_or(0);
+    (StatusCode::OK, Json(crate::notifier::toasts_snapshot(since)))
+}
+
+/// Toast interaction (click / dismiss) from the overlay page.
+async fn ui_toast_action(Json(body): Json<Value>) -> (StatusCode, Json<Value>) {
+    let Some(seq) = body.get("seq").and_then(Value::as_u64) else {
+        return json_error(&ApiError::bad_request("seq is required"));
+    };
+    let action = body.get("action").and_then(Value::as_str).unwrap_or("dismiss");
+    crate::notifier::toast_action(seq, action);
+    json_ok(json!({ "seq": seq, "action": action }))
+}
+
+/// The overlay page calls this when its stack drained and went idle: the
+/// host clears the queue and closes the overlay webview (keeps the shell
+/// free of hidden full-height children between notification bursts).
+async fn ui_toast_release() -> (StatusCode, Json<Value>) {
+    let Some(app_handle) = crate::APP_HANDLE.get() else {
+        return json_error(&ApiError::internal("app handle not available"));
+    };
+    crate::notifier::toast_release(app_handle);
+    json_ok(json!({ "released": true }))
+}
+
 /// Toggle the options drawer (brand-logo click in the rail).
 async fn ui_toggle_drawer() -> (StatusCode, Json<Value>) {
     if let Some(app_handle) = crate::APP_HANDLE.get() {
@@ -383,6 +437,19 @@ fn three_state(snapshot: &Value) -> String {
         "scan_qr".to_string()
     } else {
         "detecting".to_string()
+    }
+}
+
+/// Bring the first instance's window back: a second launch (desktop
+/// shortcut, Start Menu, exe double click) hits single-instance handling and
+/// pings this endpoint instead of dying silently (main.rs). No key required:
+/// the loopback binding alone already restricts this to local callers.
+async fn ui_show() -> (StatusCode, Json<Value>) {
+    if let Some(app_handle) = crate::APP_HANDLE.get() {
+        crate::window::show_main_window(app_handle);
+        json_ok(json!({ "shown": true }))
+    } else {
+        json_error(&ApiError::internal("app handle not available"))
     }
 }
 
@@ -882,6 +949,122 @@ async fn chats(
     }
 }
 
+/// Start a call through the chat UI: opens the chat (creating the account
+/// webview when it does not exist yet - automation callers should not need
+/// to pre-open an account), then clicks the voice/video call button in the
+/// conversation header. The call surface is WhatsApp's own (in-page panel
+/// or popup window); this endpoint only drives the entry point.
+async fn call_start(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Json(body): Json<Value>,
+) -> (StatusCode, Json<Value>) {
+    if let Err(err) = authorize_call(&headers) {
+        return json_error(&err);
+    }
+    if let Err(err) = require_api_enabled(&state) {
+        return json_error(&err);
+    }
+    let phone = body.get("phone").and_then(Value::as_str).unwrap_or("");
+    if phone.is_empty() {
+        return json_error(&ApiError::bad_request("phone is required"));
+    }
+    let call_type = body.get("type").and_then(Value::as_str).unwrap_or("voice");
+    if call_type != "voice" && call_type != "video" {
+        return json_error(&ApiError::bad_request("type must be 'voice' or 'video'"));
+    }
+    let account_id = match resolve_account_id(&state, body.get("account").and_then(Value::as_str)) {
+        Ok(id) => id,
+        Err(err) => return json_error(&err),
+    };
+    // The webview is lazy; a parked/unopened account gets opened first. The
+    // open flow is fast (view shell); the page itself keeps loading and
+    // open_chat below waits for the composer/bridge within its own budget.
+    if page_for(Some(account_id.as_str())).is_none() {
+        let Some(account) = state.settings.account(account_id.as_str()) else {
+            return json_error(&ApiError::unavailable("account window is not ready"));
+        };
+        let Some(app_handle) = crate::APP_HANDLE.get() else {
+            return json_error(&ApiError::internal("app handle not available"));
+        };
+        let handle = app_handle.clone();
+        let requested = account.clone();
+        match crate::window::open_account_webview(&handle, &requested) {
+            Ok(()) => {}
+            Err(err) => {
+                return json_error(&ApiError::unavailable(format!(
+                    "account window could not be opened: {err}"
+                )));
+            }
+        }
+    }
+    let Some(bridge) = page_for(Some(account_id.as_str())) else {
+        return json_error(&ApiError::unavailable("account window is not ready"));
+    };
+    // Open the target chat first (the call button lives in the chat header).
+    if let Err(err) = bridge.open_chat(phone, None).await {
+        return json_error(&err);
+    }
+    let arguments = serde_json::to_string(call_type)
+        .unwrap_or_else(|_| "\"voice\"".to_string());
+    let script = format!(
+        "JSON.stringify(function(){{ try {{ if (!window.__zapdudeApiV1 || typeof window.__zapdudeApiV1.startCall !== 'function') {{ return null; }} return window.__zapdudeApiV1.startCall({arguments}); }} catch (error) {{ return {{ ok:false, error:'unexpected_error', detail: String(error && error.message || error) }}; }} }}())",
+        arguments = arguments
+    );
+    match bridge.evaluate(script).await {
+        Ok(outcome) => {
+            let mut detail = json!({
+                "account": account_id,
+                "phone": phone,
+                "type": call_type,
+                "clicked": outcome.get("clicked").cloned().unwrap_or(json!(null)),
+                "ok": outcome.get("ok").cloned().unwrap_or(json!(false)),
+            });
+            if let Some(error) = outcome.get("error").and_then(Value::as_str) {
+                detail["error"] = json!(error);
+            }
+            (StatusCode::OK, Json(detail))
+        }
+        Err(err) => json_error(&err),
+    }
+}
+
+/// End the active call for an account (clicks WhatsApp's hang-up control).
+async fn call_end(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Json(body): Json<Value>,
+) -> (StatusCode, Json<Value>) {
+    if let Err(err) = authorize_call(&headers) {
+        return json_error(&err);
+    }
+    if let Err(err) = require_api_enabled(&state) {
+        return json_error(&err);
+    }
+    let account_id = match resolve_account_id(&state, body.get("account").and_then(Value::as_str)) {
+        Ok(id) => id,
+        Err(err) => return json_error(&err),
+    };
+    let Some(bridge) = page_for(Some(account_id.as_str())) else {
+        return json_error(&ApiError::unavailable("account window is not ready"));
+    };
+    let script = String::from(
+        "JSON.stringify(function(){ try { if (!window.__zapdudeApiV1 || typeof window.__zapdudeApiV1.endCall !== 'function') { return null; } return window.__zapdudeApiV1.endCall(); } catch (error) { return { ok:false, error:'unexpected_error', detail: String(error && error.message || error) }; } }())",
+    );
+    match bridge.evaluate(script).await {
+        Ok(outcome) => (
+            StatusCode::OK,
+            Json(json!({
+                "account": account_id,
+                "ok": outcome.get("ok").cloned().unwrap_or(json!(false)),
+                "clicked": outcome.get("clicked").cloned().unwrap_or(json!(null)),
+                "error": outcome.get("error").cloned().unwrap_or(json!(null)),
+            })),
+        ),
+        Err(err) => json_error(&err),
+    }
+}
+
 async fn events(
     State(state): State<ApiState>,
     headers: HeaderMap,
@@ -977,4 +1160,196 @@ async fn webhook_post(
     app_settings.webhook_secret = secret;
     let _ = state.settings.update_api(app_settings);
     json_ok(json!({ "url": url, "configured": !url.is_empty() }))
+}
+
+// -------------------------------------------------------------------------
+// Debug harness (inactive unless ZAPDUDE_DEBUG_EVAL=1: every handler gates
+// on the env var AND the API key AND the API-enabled preference, and the
+// whole router only listens on loopback).
+// -------------------------------------------------------------------------
+
+#[derive(Deserialize)]
+struct DebugEvalBody {
+    account: Option<String>,
+    script: String,
+    all: Option<bool>,
+}
+
+#[derive(Deserialize)]
+struct DebugEmitBody {
+    kind: String,
+    #[serde(default)]
+    data: Value,
+}
+
+fn debug_harness_enabled() -> bool {
+    matches!(std::env::var("ZAPDUDE_DEBUG_EVAL").as_deref(), Ok("1"))
+}
+
+/// Debug harness auth: the same key verification as automation calls but
+/// NOT rate limited - debug monitors poll fast during live sessions and
+/// must not exhaust the shared 60/min window. The env var + loopback
+/// binding stay part of the gate.
+fn debug_auth(headers: &HeaderMap) -> Result<(), ApiError> {
+    let Some(state_settings) = settings() else {
+        return Err(ApiError::internal("app state not initialized"));
+    };
+    let expected = state_settings.api_key();
+    let provided = extract_api_key(
+        headers.get("X-API-Key").and_then(|value| value.to_str().ok()),
+        headers.get("Authorization").and_then(|value| value.to_str().ok()),
+    );
+    match provided {
+        Some(candidate) if candidate == expected && !expected.is_empty() => Ok(()),
+        _ => Err(ApiError::unauthorized()),
+    }
+}
+
+/// Shared gate for every debug call: env flag, API key, API enabled.
+fn debug_gate(state: &ApiState, headers: &HeaderMap) -> Result<(), ApiError> {
+    if !debug_harness_enabled() {
+        return Err(ApiError::unavailable(
+            "debug harness disabled (set ZAPDUDE_DEBUG_EVAL=1)",
+        ));
+    }
+    debug_auth(headers)?;
+    require_api_enabled(state)
+}
+
+/// Evaluate a JS EXPRESSION inside an account webview (or all of them) and
+/// return the JSON-serialized result. This is the live inspection channel:
+/// WhatsApp DOM probes, page diagnostics and popup lifecycle experiments
+/// run through it while developing. It never ships enabled: the env var
+/// must be set at process start.
+async fn debug_eval(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Json(body): Json<DebugEvalBody>,
+) -> (StatusCode, Json<Value>) {
+    if let Err(err) = debug_gate(&state, &headers) {
+        return json_error(&err);
+    }
+    if body.script.trim().is_empty() {
+        return json_error(&ApiError::bad_request("script is required"));
+    }
+    // The expression rides a defensive wrapper so page side exceptions come
+    // back as data instead of transport errors; the stringified result goes
+    // through the same double-unwrap transport every bridge call uses.
+    let wrapped = format!(
+        "JSON.stringify(function(){{ try {{ return ({}); }} catch (error) {{ return {{ eval_error: String(error && error.message || error) }}; }} }}())",
+        body.script
+    );
+    let mut results = serde_json::Map::new();
+    if body.all == Some(true) {
+        for account in state.settings.current_accounts() {
+            let value = match page_for(Some(account.id.as_str())) {
+                Some(bridge) => debug_eval_once(&bridge, &wrapped).await,
+                None => json!({ "eval_error": "no bridge installed for this account" }),
+            };
+            results.insert(account.id.clone(), value);
+        }
+    } else {
+        let account_id = match resolve_account_id(&state, body.account.as_deref()) {
+            Ok(id) => id,
+            Err(err) => return json_error(&err),
+        };
+        let Some(bridge) = page_for(Some(account_id.as_str())) else {
+            return json_error(&ApiError::unavailable("account window is not ready"));
+        };
+        let value = debug_eval_once(&bridge, &wrapped).await;
+        results.insert(account_id.clone(), value);
+    }
+    json_ok(Value::Object(results))
+}
+
+async fn debug_eval_once(
+    bridge: &std::sync::Arc<super::page_ops::PageBridge>,
+    script: &str,
+) -> Value {
+    match bridge.evaluate(script.to_string()).await {
+        Ok(value) => value,
+        Err(err) => json!({ "eval_error": err.message }),
+    }
+}
+
+/// Enumerate every window and webview the shell knows about: labels, URLs
+/// and visibility. This is how live sessions answer "what does the runtime
+/// actually look like" (popup call windows land here with popup-* labels).
+async fn debug_windows(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+) -> (StatusCode, Json<Value>) {
+    if let Err(err) = debug_gate(&state, &headers) {
+        return json_error(&err);
+    }
+    let Some(app_handle) = crate::APP_HANDLE.get() else {
+        return json_error(&ApiError::internal("app handle not available"));
+    };
+    let mut targets: Vec<Value> = Vec::new();
+    for (label, window) in app_handle.windows() {
+        targets.push(json!({
+            "kind": "window",
+            "label": label,
+            "visible": window.is_visible().unwrap_or(false),
+            "minimized": window.is_minimized().unwrap_or(false),
+            "title": window.title().unwrap_or_default(),
+        }));
+    }
+    for (label, webview) in app_handle.webviews() {
+        targets.push(json!({
+            "kind": "webview",
+            "label": label,
+            "url": webview.url().map(|url| url.to_string()).unwrap_or_default(),
+        }));
+    }
+    json_ok(json!({ "targets": targets }))
+}
+
+/// Close one window or webview by label (shell core surfaces are refused):
+/// the programmatic way to exercise the popup close path end to end.
+async fn debug_close_window(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Path(label): Path<String>,
+) -> (StatusCode, Json<Value>) {
+    if let Err(err) = debug_gate(&state, &headers) {
+        return json_error(&err);
+    }
+    if label == "main" || label == "rail" || label == "welcome" {
+        return json_error(&ApiError::bad_request("refusing to close a core shell surface"));
+    }
+    let Some(app_handle) = crate::APP_HANDLE.get() else {
+        return json_error(&ApiError::internal("app handle not available"));
+    };
+    // Account webviews carry page bridges: cancel the bridge before the
+    // target goes away (the poller holds a Webview handle).
+    if let Some(account_id) = label.strip_prefix("account-") {
+        crate::api::page_ops::remove(account_id);
+    }
+    if let Some(window) = app_handle.get_window(&label) {
+        let closed = window.close();
+        return json_ok(json!({ "kind": "window", "label": label, "closed": closed.is_ok() }));
+    }
+    if let Some(webview) = app_handle.get_webview(&label) {
+        let closed = webview.close();
+        return json_ok(json!({ "kind": "webview", "label": label, "closed": closed.is_ok() }));
+    }
+    json_error(&ApiError::bad_request(format!(
+        "no window or webview labeled '{label}'"
+    )))
+}
+
+/// Inject a synthetic event through the API bus (SSE, webhook and polling
+/// consumers all see it). Used to exercise event consumers without waiting
+/// for a real WhatsApp message.
+async fn debug_emit(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Json(body): Json<DebugEmitBody>,
+) -> (StatusCode, Json<Value>) {
+    if let Err(err) = debug_gate(&state, &headers) {
+        return json_error(&err);
+    }
+    let event = bus().emit(&body.kind, body.data);
+    json_ok(json!({ "event": event }))
 }

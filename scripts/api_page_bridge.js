@@ -60,7 +60,11 @@
     }
 
     function visibleChatListItems() {
+        // WhatsApp moved the chat list to grid rows with stable test ids
+        // (data-testid="list-item-N"); the role-based probing below stays
+        // as a fallback for older deployments.
         const hosts = [
+            '#pane-side [data-testid^="list-item"]',
             '#pane-side div[role="listitem"]',
             'div[role="listitem"]',
         ];
@@ -80,20 +84,47 @@
             for (const item of items.slice(0, max)) {
                 let title = '';
                 let unread = false;
+                let unreadCount = 0;
                 let snippet = '';
                 try {
                     const titleNode = item.querySelector('span[title]');
                     title = titleNode ? titleNode.getAttribute('title') : '';
-                    const badge = item.querySelector('[aria-label*="read"], [aria-label*="lidos"], [aria-label*="no ley"]');
-                    const badgeMatch = badge ? String(badge.getAttribute('aria-label') || '').match(/(\d+)/) : null;
-                    unread = (badge && !!badgeMatch) || !!item.querySelector('span[aria-label*="missed"]');
-                    if (badgeMatch) unread = true;
-                    snippet = titleNode ? String(titleNode.parentElement ? titleNode.parentElement.innerText || '' : '') : String(item.innerText || '');
+                    // Unread badge: the dedicated test id first, then the
+                    // historical aria-label matcher; digits come from the
+                    // badge itself so locale words never matter.
+                    const badge =
+                        item.querySelector('[data-testid="icon-unread-count"]')
+                        || item.querySelector('[aria-label*="read"], [aria-label*="lidos"], [aria-label*="no ley"]');
+                    if (badge) {
+                        const labelCount = String(badge.getAttribute('aria-label') || '').match(/(\d+)/);
+                        unreadCount = labelCount ? Number(labelCount[1]) : 1;
+                        unread = true;
+                    }
+                    if (!unread && item.querySelector('span[aria-label*="missed"]')) {
+                        unread = true;
+                    }
+                    // Last-message preview: the secondary cell's titled span,
+                    // falling back to the last titled span in the row.
+                    const secondary =
+                        item.querySelector('[data-testid="cell-frame-secondary"] span[title]');
+                    snippet = secondary
+                        ? String(secondary.getAttribute('title') || '')
+                        : (function () {
+                            const titled = item.querySelectorAll('span[title]');
+                            return titled.length
+                                ? String(titled[titled.length - 1].getAttribute('title') || '')
+                                : '';
+                        })();
                     if (snippet.length > 120) snippet = snippet.slice(0, 120);
                 } catch (_itemParseError) {
                     // Skip malformed items; the list remains best-effort.
                 }
-                chats.push({ title: title, unread: unread, snippet: snippet });
+                chats.push({
+                    title: title,
+                    unread: unread,
+                    unread_count: unreadCount,
+                    snippet: snippet,
+                });
             }
             return { ok: true, count: chats.length, chats: chats, degraded: chats.length === 0 };
         } catch (error) {
@@ -278,6 +309,189 @@
             },
 
             /**
+             * Open a chat (and optionally prefill/send a message) through
+             * the search drawer instead of the ?send URL deep link - the
+             * deep link traps cold-started webviews on an unresolvable
+             * redirect (about:blank, seen live). The drawer works from any
+             * state and matches unsaved numbers; the host paces the steps
+             * (drawer mounts asynchronously), so this op runs in pieces:
+             * first call opens the drawer, later calls type and pick.
+             */
+            openChatByPhone: function (phone) {
+                try {
+                    phone = String(phone || '').replace(/\D+/g, '');
+                    if (phone.length < 5) {
+                        return { ok: false, error: 'phone_too_short' };
+                    }
+                    var drawer = null;
+                    try {
+                        drawer = document.querySelector('div[data-testid="new-chat-drawer"]');
+                    } catch (_queryError) {
+                        drawer = null;
+                    }
+                    if (!drawer) {
+                        var opener = document.querySelector(
+                            'button[aria-label="New chat"], button[aria-label*="nuevo chat" i], ' +
+                            'button[aria-label*="chat nuevo" i], button[aria-label*="new chat" i]'
+                        );
+                        if (!opener) {
+                            return { ok: false, error: 'new_chat_button_not_found' };
+                        }
+                        opener.click();
+                        return { ok: false, stage: 'drawer_opening', error: 'retry_needed' };
+                    }
+                    var input = drawer.querySelector('input');
+                    if (!input) {
+                        return { ok: false, error: 'drawer_input_not_found' };
+                    }
+                    input.focus({ preventScroll: true });
+                    var setter = Object.getOwnPropertyDescriptor(
+                        window.HTMLInputElement.prototype,
+                        'value'
+                    ).set;
+                    setter.call(input, '+' + phone);
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    return { ok: true, typed: true };
+                } catch (error) {
+                    return emitError('openChatByPhone', error);
+                }
+            },
+
+            /**
+             * Pick the drawer's result row that matches the searched number
+             * (runs one beat after openChatByPhone's typing, when the
+             * drawer rendered matches).
+             */
+            pickPhoneResult: function (phone) {
+                try {
+                    phone = String(phone || '').replace(/\D+/g, '');
+                    var drawer = document.querySelector('div[data-testid="new-chat-drawer"]');
+                    if (!drawer) {
+                        return { ok: false, error: 'drawer_gone', stage: 'pick' };
+                    }
+                    var rows = drawer.querySelectorAll('div[data-testid="cell-frame-container"]');
+                    var row = null;
+                    // Own-number search: WhatsApp renders the self-chat row.
+                    try {
+                        row = drawer.querySelector('div[data-testid="message-yourself-row"]');
+                    } catch (_selfRowError) {
+                        row = null;
+                    }
+                    if (!row) {
+                        for (var index = 0; index < rows.length; index++) {
+                            var text = String(rows[index].textContent || '');
+                            if (/matches this number|coincide con este n/i.test(text)) {
+                                row = rows[index];
+                                break;
+                            }
+                        }
+                    }
+                    if (!row && rows.length === 1) {
+                        row = rows[0];
+                    }
+                    if (!row) {
+                        return { ok: false, error: 'no_matching_row', stage: 'pick' };
+                    }
+                    var target = row;
+                    var depth = 0;
+                    while (target && target !== drawer && target.getAttribute('role') !== 'row' && depth < 8) {
+                        target = target.parentElement;
+                        depth += 1;
+                    }
+                    (target && target !== drawer ? target : row).click();
+                    return { ok: true, clicked: true };
+                } catch (error) {
+                    return emitError('pickPhoneResult', error);
+                }
+            },
+
+            /**
+             * Start a call from the OPEN chat: clicks the voice/video call
+             * button in the conversation header. Locale-aware matching so
+             * Spanish/English deployments both work. Returns diagnostics on
+             * failure (automation flows surface them to the API caller).
+             */
+            startCall: function (mode) {
+                try {
+                    var header = document.querySelector('[data-testid="conversation-header"]');
+                    if (!header) {
+                        return { ok: false, error: 'no_open_chat' };
+                    }
+                    var wantVideo = String(mode || 'voice') === 'video';
+                    var pattern = wantVideo
+                        ? /videollamada|video\s*call/i
+                        : /llamada\s*de\s*voz|voice\s*call|llamar/i;
+                    var buttons = header.querySelectorAll('button');
+                    for (var index = 0; index < buttons.length; index++) {
+                        var label = String(buttons[index].getAttribute('aria-label') || '');
+                        if (pattern.test(label)) {
+                            buttons[index].click();
+                            return { ok: true, clicked: label.slice(0, 32) };
+                        }
+                    }
+                    return { ok: false, error: 'call_button_not_found' };
+                } catch (error) {
+                    return emitError('startCall', error);
+                }
+            },
+
+            /**
+             * End the active call: looks for the hang-up control in the call
+             * surface (covers the in-page call panel and whatever the call
+             * popup renders). Non-fatal when no call exists.
+             */
+            endCall: function () {
+                try {
+                    var pattern = /colgar|end\s*call|finalizar\s*llamada/i;
+                    var buttons = document.querySelectorAll('button');
+                    for (var index = 0; index < buttons.length; index++) {
+                        var label = String(buttons[index].getAttribute('aria-label') || '');
+                        if (pattern.test(label)) {
+                            buttons[index].click();
+                            return { ok: true, clicked: label.slice(0, 32) };
+                        }
+                    }
+                    return { ok: false, error: 'no_call_surface' };
+                } catch (error) {
+                    return emitError('endCall', error);
+                }
+            },
+
+            /**
+             * Reconcile the page after its call popup vanished without
+             * going through WhatsApp's own end-call flow (the popup X
+             * button bypasses it and leaves the chat page stuck "in call"
+             * with nothing visible). The host calls this the moment a
+             * popup- window is destroyed. When WhatsApp kept a
+             * "return to call / volviendo a la llamada" control around the
+             * orphaned call state, clicking it makes WhatsApp itself tear
+             * the dead call down (it re-issues the popup as a closed
+             * session and the state clears).
+             */
+            callRecover: function () {
+                try {
+                    var pattern = /volviendo\s*a\s*la\s*llamada|volver\s*a\s*la\s*llamada|return\s*to\s*call|rejoin|continuar\s*la\s*llamada/i;
+                    var candidates = document.querySelectorAll('[role="button"], button, [aria-label]');
+                    for (var index = 0; index < candidates.length; index++) {
+                        var node = candidates[index];
+                        var composed = String(node.getAttribute('aria-label') || '') + ' ' + String(node.textContent || '').slice(0, 160);
+                        if (pattern.test(composed)) {
+                            node.click();
+                            return { ok: true, recovered: true, clicked: composed.trim().slice(0, 48) };
+                        }
+                    }
+                    return {
+                        ok: true,
+                        recovered: false,
+                        url: decodeFinalUrl(),
+                        title: String(document.title || ''),
+                    };
+                } catch (error) {
+                    return emitError('callRecover', error);
+                }
+            },
+
+            /**
              * Dispatch an incoming message event to the host.
              * Runs from the Notification hook and chat list observers.
              */
@@ -334,6 +548,16 @@
                     payload = api.sendCurrent(String(args.text || ''));
                 } else if (op === 'chatList') {
                     payload = api.chatList(Number(args.limit) || 20);
+                } else if (op === 'openChatByPhone') {
+                    payload = api.openChatByPhone(String(args.phone || ''));
+                } else if (op === 'pickPhoneResult') {
+                    payload = api.pickPhoneResult(String(args.phone || ''));
+                } else if (op === 'startCall') {
+                    payload = api.startCall(String(args.mode || 'voice'));
+                } else if (op === 'endCall') {
+                    payload = api.endCall();
+                } else if (op === 'callRecover') {
+                    payload = api.callRecover();
                 } else {
                     payload = { ok: false, error: 'unknown_operation', operation: String(op || '') };
                 }

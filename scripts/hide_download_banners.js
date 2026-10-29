@@ -50,8 +50,11 @@
         'i'
     );
 
-    /// Standalone promo buttons ("Descargar", "Download") - exact-text only,
-    /// never a substring, so image/file download buttons elsewhere survive.
+    /// Standalone promo buttons ("Descargar", "Download") - USED ONLY BY THE
+    /// LOGGED-OUT landing flow. NEVER by the generic logged-in sweep: WhatsApp's
+    /// media viewer overlay lives outside #main and carries REAL download
+    /// buttons whose whole aria-label is just "Download" (the bug the user
+    /// hit: the download arrow vanished from the media viewer).
     var BUTTON_PROMO_PATTERN = /^\s*(descarga\w*|download|obtener|get|instala\w*|install)\s*$/i;
 
     /// WhatsApp's inline SVG icons carry a <title> like "ic-download" that
@@ -67,13 +70,16 @@
     var CANDIDATE_SELECTOR =
         'div, aside, header, section, span, p, h1, h2, h3, button, a';
 
-    /// Chat/composer territory is off-limits: nothing inside these gets
-    /// hidden, whatever it says.
+    /// Chat/composer/overlay territory is off-limits: nothing inside these
+    /// gets hidden, whatever it says. Overlays (dialogs and menus) carry
+    /// functional media controls - the media viewer's real Download button
+    /// was the victim of the exact-text sweep before.
     function inProtectedZone(node) {
         try {
             return !!node.closest(
                 '#pane-side, div[role="listitem"], [contenteditable="true"], ' +
-                '[contenteditable], #main, div[role="textbox"], canvas, input, textarea'
+                '[contenteditable], #main, div[role="textbox"], canvas, input, textarea, ' +
+                'div[role="dialog"], div[role="menu"], div[role="tooltip"]'
             );
         } catch (_error) {
             return true; // when in doubt, protect
@@ -85,26 +91,12 @@
             if (inProtectedZone(node)) {
                 return false;
             }
+            // Phrase matches only: the bare "Download"-button rule lives in
+            // the landing flow below where it cannot reach overlays (the
+            // media viewer keeps real Download buttons outside #main).
             var own = (node.getAttribute('aria-label') || '') + ' ' + (node.textContent || '');
             own = own.slice(0, 400);
-            if (PROMO_PATTERN.test(own)) {
-                return true;
-            }
-            // Button/link whose whole wording is just "Descargar"/"Download"
-            // (with or without an icon inside): promo furniture on the
-            // landing page. In-chat media download buttons live inside the
-            // protected zone above, so they can never reach this check.
-            var tag = node.tagName;
-            if (tag === 'BUTTON' || tag === 'A') {
-                var label = cleanText(node.getAttribute('aria-label'));
-                var text = cleanText(node.textContent);
-                var buttonish = (label.length <= 12 && BUTTON_PROMO_PATTERN.test(label)) ||
-                    (text.length <= 12 && BUTTON_PROMO_PATTERN.test(text));
-                if (buttonish) {
-                    return true;
-                }
-            }
-            return false;
+            return PROMO_PATTERN.test(own);
         } catch (_error) {
             return false;
         }
@@ -135,21 +127,16 @@
     }
 
     /// Is this child acceptable inside a promo container? Hidden nodes,
-    /// promo matches, pure icons and bare "Download"-style buttons qualify.
+    /// pure icons and promo matches qualify. Wording-based promotion
+    /// ("Download" button) stays OUT: a toolbar full of icon controls
+    /// (media viewer) must never collapse because one control read
+    /// "Download".
     function childIsPromoish(child) {
         if (isHidden(child)) {
             return true;
         }
         try {
             var own = cleanText(child.textContent);
-            // A button/link whose whole wording is "Download"/"Descargar"
-            // (icon + short label) is promo furniture, even with an svg.
-            if (own.length <= 12 && BUTTON_PROMO_PATTERN.test(own)) {
-                var tag = child.tagName;
-                if (tag === 'BUTTON' || tag === 'A' || tag === 'SPAN' || tag === 'DIV') {
-                    return true;
-                }
-            }
             if ((child.tagName === 'IMG' || child.tagName === 'PICTURE' ||
                  child.tagName === 'CANVAS' || child.tagName === 'svg' ||
                  child.querySelector('svg, img, canvas, picture')) &&

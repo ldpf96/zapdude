@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Notifications - Zapdude</title>
+  <style>
+    /* Brand tokens mirror the shell drawer (dark default; switched to
+       light below through the persisted preference). */
+    :root {
+      --card: rgba(12, 23, 19, 0.97);
+      --card-hover: rgba(16, 29, 24, 0.98);
+      --stroke: rgba(255, 255, 255, 0.08);
+      --accent: #2ee06f;
+      --accent-soft: rgba(46, 224, 111, 0.14);
+      --text: #eef4f1;
+      --muted: #7d948a;
+      --shadow: 0 10px 32px rgba(0, 0, 0, 0.35);
+    }
+    :root[data-theme="light"] {
+      --card: rgba(255, 255, 255, 0.97);
+      --card-hover: #ffffff;
+      --stroke: rgba(0, 0, 0, 0.09);
+      --accent: #12b866;
+      --accent-soft: rgba(18, 184, 102, 0.12);
+      --text: #0c2118;
+      --muted: #5d7568;
+      --shadow: 0 10px 32px rgba(12, 33, 24, 0.18);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    /* The overlay hosts floating cards; the rest of its surface must stay
+       invisible so it reads as notifications, not as a panel. */
+    html, body {
+      background: transparent;
+      height: 100%;
+      overflow: hidden;
+    }
+    body {
+      font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      justify-content: flex-start;
+      gap: 10px;
+      padding: 0;
+    }
+    .toast {
+      width: 320px;
+      background: var(--card);
+      border: 1px solid var(--stroke);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      padding: 12px 14px;
+      display: flex;
+      gap: 11px;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
+      animation: slide-in 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+    }
+    .toast::before {
+      content: "";
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 3px;
+      background: linear-gradient(180deg, #34e877 0%, #0f9e6c 100%);
+    }
+    .toast:hover {
+      background: var(--card-hover);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow), 0 0 0 1px var(--accent-soft);
+    }
+    .toast.leaving {
+      animation: slide-out 0.28s ease forwards;
+      pointer-events: none;
+    }
+    .avatar {
+      width: 40px; height: 40px; border-radius: 999px; flex-shrink: 0;
+      background: linear-gradient(140deg, #34e877 0%, #0f9e6c 100%);
+      color: #06231a;
+      font-weight: 700; font-size: 15px; letter-spacing: 0.4px;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+      text-transform: uppercase;
+      position: relative;
+      overflow: hidden;
+    }
+    .avatar.bubble { }
+    .avatar img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 999px;
+    }
+    .avatar.bubble::after {
+      content: "";
+      position: absolute; right: -1px; bottom: -1px;
+      width: 12px; height: 12px; border-radius: 999px;
+      background: var(--accent);
+      border: 2px solid var(--card);
+    }
+    .lines { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .name {
+      font-size: 13.5px; font-weight: 650; letter-spacing: 0.2px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      padding-right: 18px;
+    }
+    .body {
+      font-size: 12.5px; color: var(--muted); line-height: 1.45;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+      overflow: hidden; word-break: break-word;
+    }
+    .brandrow {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 10.5px; color: var(--muted); margin-top: 2px;
+    }
+    .brandrow .zap {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 13px; height: 13px; border-radius: 4px;
+      background: linear-gradient(140deg, #34e877 0%, #0f9e6c 100%);
+      color: #06231a; font-weight: 800; font-size: 8.5px;
+    }
+    .toast .dot {
+      position: absolute; top: 10px; right: 12px;
+      width: 7px; height: 7px; border-radius: 999px;
+      background: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+    @keyframes slide-in {
+      from { opacity: 0; transform: translateX(26px) scale(0.97); }
+      to   { opacity: 1; transform: translateX(0) scale(1); }
+    }
+    @keyframes slide-out {
+      from { opacity: 1; transform: translateX(0); }
+      to   { opacity: 0; transform: translateX(26px); }
+    }
+  </style>
+</head>
+<body></body>
+<script>
+  (function () {
+    'use strict';
+    var sinceSeq = 0;
+    var shownAny = false;
+    var lastActivity = 0;
+    var accountLabels = {};
+    var released = false;
+
+    function applyTheme() {
+      try {
+        fetch('/api/prefs')
+          .then(function (response) { return response.json(); })
+          .then(function (prefs) {
+            document.documentElement.setAttribute(
+              'data-theme',
+              prefs.theme === 'light' ? 'light' : 'dark'
+            );
+          })
+          .catch(function () {});
+      } catch (_themeError) {}
+    }
+
+    function loadAccountLabels() {
+      try {
+        fetch('/api/accounts')
+          .then(function (response) { return response.json(); })
+          .then(function (payload) {
+            (payload.accounts || []).forEach(function (account) {
+              accountLabels[account.id] = account.label || account.id;
+            });
+            document.querySelectorAll('.brandrow[data-account]').forEach(function (row) {
+              var id = row.getAttribute('data-account');
+              var label = accountLabels[id] || id;
+              var target = row.querySelector('.account');
+              if (target) target.textContent = label;
+            });
+          })
+          .catch(function () {});
+      } catch (_labelsError) {}
+    }
+
+    function initials(title) {
+      var clean = String(title || '').trim();
+      if (!clean) { return '?'; }
+      var words = clean.split(/\s+/);
+      var first = words[0].charAt(0) || '?';
+      var second = words.length > 1 ? words[1].charAt(0) : '';
+      return (first + second).trim().slice(0, 2) || first;
+    }
+
+    function cardFor(toast) {
+      var card = document.createElement('div');
+      card.className = 'toast';
+      card.dataset.seq = toast.seq;
+
+      var avatar = document.createElement('div');
+      avatar.className = 'avatar bubble';
+      if (toast.icon && /^https?:\/\//.test(String(toast.icon))) {
+        var picture = document.createElement('img');
+        picture.src = String(toast.icon);
+        picture.alt = '';
+        picture.referrerPolicy = 'no-referrer';
+        avatar.appendChild(picture);
+      } else {
+        avatar.textContent = initials(toast.title);
+      }
+      card.appendChild(avatar);
+
+      var lines = document.createElement('div');
+      lines.className = 'lines';
+
+      var name = document.createElement('div');
+      name.className = 'name';
+      name.textContent = toast.title || 'New message';
+      lines.appendChild(name);
+
+      var body = document.createElement('div');
+      body.className = 'body';
+      body.textContent = toast.body || '';
+      if (toast.body) lines.appendChild(body);
+
+      var brand = document.createElement('div');
+      brand.className = 'brandrow';
+      brand.setAttribute('data-account', toast.account || '');
+      var mark = document.createElement('span');
+      mark.className = 'zap';
+      mark.textContent = 'Z';
+      var accountLabel = document.createElement('span');
+      accountLabel.className = 'account';
+      accountLabel.textContent = accountLabels[toast.account] || toast.account || 'WhatsApp';
+      brand.appendChild(mark);
+      var now = document.createElement('span');
+      now.textContent = 'Zapdude · ';
+      brand.appendChild(now);
+      brand.appendChild(accountLabel);
+      lines.appendChild(brand);
+
+      card.appendChild(lines);
+      var dot = document.createElement('span');
+      dot.className = 'dot';
+      card.appendChild(dot);
+      return card;
+    }
+
+    function removeCard(card, fade) {
+      if (card.classList.contains('leaving')) { return; }
+      card.classList.add('leaving');
+      setTimeout(function () { card.remove(); }, fade ? 300 : 0);
+    }
+
+    function toastAction(seq, action, card) {
+      removeCard(card, true);
+      try {
+        fetch('/api/ui/toast/action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ seq: seq, action: action }),
+        }).catch(function () {});
+      } catch (_actionError) {}
+    }
+
+    document.addEventListener('click', function (event) {
+      var card = event.target && event.target.closest
+        ? event.target.closest('.toast')
+        : null;
+      if (!card) { return; }
+      toastAction(card.dataset.seq, 'click', card);
+    });
+
+    function poll() {
+      if (released) { return; }
+      try {
+        fetch('/api/ui/toasts?since=' + sinceSeq)
+          .then(function (response) { return response.json(); })
+          .then(function (payload) {
+            (payload.toasts || []).forEach(function (toast) {
+              if (toast.seq <= sinceSeq) { return; }
+              sinceSeq = Math.max(sinceSeq, toast.seq);
+              lastActivity = Date.now();
+              shownAny = true;
+              if (accountLabels[toast.account] === undefined) {
+                loadAccountLabels();
+              }
+              var card = cardFor(toast);
+              document.body.appendChild(card);
+              // Older cards fall off to keep the stack readable.
+              var stack = document.querySelectorAll('.toast:not(.leaving)');
+              if (stack.length > 3) {
+                removeCard(stack[0], true);
+              }
+              setTimeout(function () {
+                removeCard(card, true);
+              }, 6500);
+            });
+          })
+          .catch(function () {});
+      } catch (_pollError) {}
+    }
+
+    function idleCheck() {
+      if (released || !shownAny) { return; }
+      var onScreen = document.querySelectorAll('.toast:not(.leaving)').length;
+      if (onScreen === 0 && Date.now() - lastActivity > 3500) {
+        released = true;
+        try {
+          fetch('/api/ui/toast/release', { method: 'POST' }).catch(function () {});
+        } catch (_releaseError) {}
+      }
+    }
+
+    setInterval(poll, 450);
+    setInterval(idleCheck, 500);
+    applyTheme();
+    loadAccountLabels();
+    poll();
+  })();
+</script>
+</html>

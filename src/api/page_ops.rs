@@ -31,10 +31,7 @@ const DEFER_INSTALL_EVERY_TICKS: u64 = 100;
 const CALL_TIMEOUT_MS: u64 = 15_000;
 
 /// Composer readiness wait hard cap (matches the timeout above).
-const COMPOSER_READY_MS: u64 = 15_000;
-
-/// Messages up to this size ride along the open-chat URL as ?text= prefill.
-const URL_PREFILL_LIMIT_CHARS: usize = 500;
+const COMPOSER_READY_MS: u64 = 20_000;
 
 static PAGE_BRIDGES: OnceLock<Mutex<HashMap<String, Arc<PageBridge>>>> = OnceLock::new();
 
@@ -76,6 +73,7 @@ pub fn install(
         window,
         bus,
         page_lock: AsyncMutex::new(()),
+        cancelled: std::sync::atomic::AtomicBool::new(false),
     });
     if let Ok(mut map) = registry.lock() {
         map.insert(account_id.to_string(), bridge.clone());
@@ -105,6 +103,11 @@ pub fn install(
             let mut ticks: u64 = 0;
             loop {
                 std::thread::sleep(std::time::Duration::from_millis(POLL_INTERVAL_MS));
+                // The webview vanished (closed/recreated): stop polling a
+                // dead target and release the thread.
+                if poller.is_cancelled() {
+                    break;
+                }
                 ticks = ticks.wrapping_add(1);
                 if ticks % DEFER_INSTALL_EVERY_TICKS == 0 {
                     for expression in &install_expressions {
@@ -118,6 +121,33 @@ pub fn install(
             }
         });
     bridge
+}
+
+/// Replace the bridge of an account whose webview was RECREATED (close +
+/// open flows). The old bridge is cancelled (its poller exits) and a fresh
+/// one is installed on the new webview. Without this, the first-ever
+/// bridge for an account would keep pointing at a destroyed webview and
+/// every automation call would run into eval timeouts (seen live).
+pub fn replace(
+    account_id: &str,
+    window: Webview<Wry>,
+    bus: Arc<super::events::ApiEventBus>,
+) -> Arc<PageBridge> {
+    remove(account_id);
+    install(account_id, window, bus)
+}
+
+/// Remove the bridge of a closed/recreated account and cancel its poller.
+pub fn remove(account_id: &str) {
+    let registry = PAGE_BRIDGES.get();
+    let Some(registry) = registry else {
+        return;
+    };
+    if let Ok(mut map) = registry.lock() {
+        if let Some(bridge) = map.remove(account_id) {
+            bridge.cancel();
+        }
+    }
 }
 
 fn percent_decode(raw: &str) -> String {
@@ -157,10 +187,26 @@ pub struct PageBridge {
     /// Serialize mutation flows: URL navigation plus composer interactions
     /// must never interleave between two callers.
     page_lock: AsyncMutex<()>,
+    /// Set when the webview this bridge was installed on got destroyed (the
+    /// account was closed or the webview recreated). The beacon poller exits
+    /// instead of hammering a dead target forever, and the bridge stops
+    /// answering automation calls.
+    cancelled: std::sync::atomic::AtomicBool,
 }
 
 /// Serialize send flows guard before `PageBridge` fields; poll helper below.
 impl PageBridge {
+    /// Evaluator used by every automation op; reports cancelled state.
+    fn is_cancelled(&self) -> bool {
+        self.cancelled
+            .load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    fn cancel(&self) {
+        self.cancelled
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+
     /// Poll the URL-hash beacon for page-to-host event envelopes.
     fn poll_beacons(&self) -> Result<(), String> {
         let url = self.window.url().map_err(|err| err.to_string())?;
@@ -265,31 +311,28 @@ impl PageBridge {
         )
     }
 
-    fn open_send_url(&self, phone: &str, message: Option<&str>) -> Result<(), ApiError> {
-        let mut target = format!("https://web.whatsapp.com/send?phone={}", phone);
-        // Prefill semantics keep the URL small: only attach ?text= when
-        // the message fits comfortably inside a URL.
-        let prefill = message.filter(|text| text.chars().count() <= URL_PREFILL_LIMIT_CHARS);
-        if let Some(text) = prefill {
-            target.push_str(&format!("&text={}", encode_query_component(text)));
-        }
-        let parsed = url::Url::parse(&target)
-            .map_err(|err| ApiError::internal(format!("send URL invalid: {}", err)))?;
-        self.window
-            .navigate(parsed)
-            .map_err(|err| ApiError::unavailable(format!("could not open chat: {}", err)))
-    }
-
     async fn wait_composer(&self) -> Result<(), ApiError> {
         let started = std::time::Instant::now();
         loop {
-            let info = self
+            // A navigation reloads the page and the deferred bridge needs a
+            // few seconds to install again: "bridge not present yet" is a
+            // WAIT state, not a failure. Other errors surface for real.
+            match self
                 .evaluate(self.bridge_expression("composerInfo", ""))
-                .await?;
-            if info.get("ok").and_then(Value::as_bool) == Some(true)
-                && info.get("ready").and_then(Value::as_bool) == Some(true)
+                .await
             {
-                return Ok(());
+                Ok(info) => {
+                    if info.get("ok").and_then(Value::as_bool) == Some(true)
+                        && info.get("ready").and_then(Value::as_bool) == Some(true)
+                    {
+                        return Ok(());
+                    }
+                }
+                Err(err) => {
+                    if err.code != "page_unavailable" {
+                        return Err(err);
+                    }
+                }
             }
             if started.elapsed() >= std::time::Duration::from_millis(COMPOSER_READY_MS) {
                 return Err(ApiError::unavailable(
@@ -300,7 +343,68 @@ impl PageBridge {
         }
     }
 
-    /// Open a chat (and optionally prefill/send a message).
+    /// Open the number's chat through the SEARCH DRAWER (WhatsApp deep
+    /// links trap cold webviews on unresolvable redirects, seen live as
+    /// about:blank; the drawer works from any state). The host paces the
+    /// async mounting: open-drawer beat, typing beat, pick beat, composer.
+    async fn drawer_open_chat(&self, digits: &str) -> Result<(), ApiError> {
+        let args = js_string(digits);
+        let started = std::time::Instant::now();
+        loop {
+            let state = self
+                .evaluate(self.bridge_expression("openChatByPhone", &args))
+                .await?;
+            if state.get("ok").and_then(Value::as_bool) == Some(true) {
+                break;
+            }
+            let opening = state.get("stage").and_then(Value::as_str) == Some("drawer_opening");
+            if !opening {
+                let message = state
+                    .get("error")
+                    .and_then(Value::as_str)
+                    .unwrap_or("unknown");
+                return Err(ApiError::unavailable(format!(
+                    "could not open the chat drawer: {message}"
+                )));
+            }
+            if started.elapsed() >= std::time::Duration::from_millis(COMPOSER_READY_MS) {
+                return Err(ApiError::unavailable("drawer took too long to open"));
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+        }
+        // The drawer renders its matches a beat after the input event; give
+        // it a few beats before declaring no match.
+        let mut pick_error = String::new();
+        for attempt in 0..5u32 {
+            tokio::time::sleep(std::time::Duration::from_millis(450)).await;
+            let outcome = self
+                .evaluate(self.bridge_expression("pickPhoneResult", &args))
+                .await?;
+            if outcome.get("ok").and_then(Value::as_bool) == Some(true) {
+                pick_error.clear();
+                break;
+            }
+            pick_error = outcome
+                .get("error")
+                .and_then(Value::as_str)
+                .unwrap_or("unknown")
+                .to_string();
+            if pick_error != "no_matching_row" {
+                break;
+            }
+            let _ = attempt;
+        }
+        if !pick_error.is_empty() {
+            return Err(ApiError::unavailable(format!(
+                "could not pick the number's chat: {pick_error}"
+            )));
+        }
+        self.wait_composer().await
+    }
+
+    /// Open a chat (and optionally prefill/send a message) through the
+    /// search drawer flow (robust from any state - the ?send deep link
+    /// used to trap cold webviews on an unresolvable redirect).
     pub async fn open_chat(
         &self,
         phone: &str,
@@ -308,8 +412,7 @@ impl PageBridge {
     ) -> Result<Value, ApiError> {
         let digits = normalize_e164(phone)?;
         let _guard = self.page_lock.lock().await;
-        self.open_send_url(&digits, message)?;
-        self.wait_composer().await?;
+        self.drawer_open_chat(&digits).await?;
         let mut detail = json!({
             "account": self.account_id,
             "phone": digits,

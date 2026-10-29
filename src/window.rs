@@ -22,6 +22,7 @@
 //! threads (setup, async commands or spawned threads) so the WebView2
 //! main-thread deadlock does not apply.
 
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Mutex;
 
@@ -54,6 +55,8 @@ const BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreen
 const CLIENT_HINTS_FIX_SCRIPT: &str = include_str!("../scripts/client_hints_fix.js");
 const API_PAGE_BRIDGE_SCRIPT: &str = include_str!("../scripts/api_page_bridge.js");
 const HIDE_DOWNLOAD_BANNERS_SCRIPT: &str = include_str!("../scripts/hide_download_banners.js");
+const CALL_ANCHOR_SCRIPT: &str = include_str!("../scripts/call_anchor.js");
+const NOTIFICATION_HOOK_SCRIPT: &str = include_str!("../scripts/notification_hook.js");
 
 /// Logical width of the left rail. The content area gets the rest.
 pub const RAIL_WIDTH: f64 = 76.0;
@@ -169,6 +172,16 @@ pub fn deferred_scripts() -> Vec<(&'static str, &'static str)> {
     if want("scripts3") {
         pairs.push(("__zapdudeHidePromos", HIDE_DOWNLOAD_BANNERS_SCRIPT));
     }
+    // The notification capture installs once the bridge it leans on is
+    // present (fallback beacon transport works even alone, but the bridge
+    // keeps the two order-stable). own flag, own try/catch: a failure can
+    // never silence the other scripts (the banner-hider lesson).
+    if want("scripts2") {
+        pairs.push(("__zapdudeNotifyV1", NOTIFICATION_HOOK_SCRIPT));
+    }
+    if want("scripts3") {
+        pairs.push(("__zapdudeCallAnchor", CALL_ANCHOR_SCRIPT));
+    }
     pairs
 }
 
@@ -187,6 +200,19 @@ fn permission_response(kind: PermissionKind) -> PermissionResponse {
 
 /// Sequence for popup window labels (pop-out calls, etc.).
 static POPUP_SEQ: AtomicU32 = AtomicU32::new(0);
+
+/// Registry of LIVE popup windows: label -> metadata. Entries let the close
+/// handler know which account the popup belonged to (the account webview
+/// must reconcile its call state when its popup vanishes) and serve the
+/// debug harness listing.
+struct PopupEntry {
+    account: String,
+    label: String,
+    url: String,
+}
+
+static POPUP_INDEX: std::sync::LazyLock<Mutex<HashMap<String, PopupEntry>>> =
+    std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// Open a POP-OUT window (WhatsApp call windows, media popups): a real
 /// native window the user can move anywhere, sharing the ACCOUNT's
@@ -213,7 +239,7 @@ fn popup_window(
     // with the same data folder fails to create) and is what gives the
     // popup the account's session.
     let environment = features.opener().environment.clone();
-    let built = tauri::webview::WebviewWindowBuilder::new(&handle, &label, WebviewUrl::External(url))
+    let built = tauri::webview::WebviewWindowBuilder::new(&handle, &label, WebviewUrl::External(url.clone()))
         .title("Zapdude call")
         .inner_size(width, height)
         .min_inner_size(280.0_f64, 240.0_f64)
@@ -232,6 +258,49 @@ fn popup_window(
             // shell theme too (re-applying everywhere is idempotent).
             apply_theme_everywhere(&handle);
             let _ = window.set_focus();
+            // Popup lifecycle tracking: WhatsApp's call popup going away (X
+            // button, Alt+F4, or WhatsApp calling window.close()) is a
+            // decision the ACCOUNT webview never hears about - the chat page
+            // keeps the "in call" state with nothing visible (the stuck
+            // state seen live). Register the popup, emit the lifecycle
+            // events for API consumers, and prompt the account page to
+            // reconcile when the popup vanishes.
+            let entry = PopupEntry {
+                account: account_id.to_string(),
+                label: label.clone(),
+                url: url.to_string(),
+            };
+            if let Ok(mut map) = POPUP_INDEX.lock() {
+                map.insert(label.clone(), entry);
+            }
+            crate::api::server::bus().emit(
+                "popup_opened",
+                serde_json::json!({
+                    "account": account_id,
+                    "label": label,
+                    "url": url.to_string(),
+                }),
+            );            let close_label = label.clone();
+            window.on_window_event(move |event| {
+                if !matches!(event, tauri::WindowEvent::Destroyed) {
+                    return;
+                }
+                let entry = POPUP_INDEX
+                    .lock()
+                    .ok()
+                    .and_then(|mut map| map.remove(&close_label));
+                if let Some(entry) = entry {
+                    crate::api::server::bus().emit(
+                        "popup_closed",
+                        serde_json::json!({
+                            "account": entry.account,
+                            "label": entry.label,
+                            "url": entry.url,
+                        }),
+                    );
+                    crate::api::reconcile_after_popup_close(&entry.account);
+                }
+            });
             tauri::webview::NewWindowResponse::Create { window }
         }
         Err(err) => {
@@ -315,7 +384,7 @@ fn account_webview_builder(account: &crate::config::AccountConfig) -> WebviewBui
 }
 
 /// Logical size available for content webviews (everything right of the rail).
-fn content_size(window: &Window<Wry>) -> tauri::Result<LogicalSize<f64>> {
+pub(crate) fn content_size(window: &Window<Wry>) -> tauri::Result<LogicalSize<f64>> {
     let scale = window.scale_factor()?;
     let physical = window.inner_size()?;
     let logical = physical.to_logical::<f64>(scale);
@@ -356,6 +425,11 @@ fn relayout(window: &Window<Wry>) {
                     LogicalSize::new(content.width, content.height),
                 )
             }
+        } else if label == "toast-overlay" {
+            // The notification stack rides the top-right of the content area;
+            // the watchdog must hold it there instead of parking it.
+            let geometry = crate::notifier::overlay_slot(&content);
+            (geometry.0, geometry.1)
         } else if active.as_deref() == Some(label.as_str()) {
             (
                 LogicalPosition::new(RAIL_WIDTH, 0.0_f64),
@@ -377,10 +451,15 @@ fn relayout(window: &Window<Wry>) {
 /// until the user opens the window from the tray).
 /// The first account is opened right after by `auto_open_first_account`.
 pub fn create_shell(app: &AppHandle) -> tauri::Result<()> {
+    // Only AUTOSTART launches honor the "start minimized" preference: a
+    // manual click on the app icon must bring a visible window up no matter
+    // the setting (the tray exists for close-to-tray, not to hide manual
+    // launches; the auto-started process carries /startminimized).
     let start_minimized = crate::SHARED
         .get()
         .map(|shared| shared.settings.current_prefs().start_minimized)
-        .unwrap_or(false);
+        .unwrap_or(false)
+        && launched_by_autostart();
     let window = tauri::window::Window::builder(app, "main")
         .title("Zapdude")
         .inner_size(1180.0_f64, 780.0_f64)
@@ -536,7 +615,11 @@ pub fn ensure_account_webview(
     ) {
         Ok(webview) => {
             let bus = crate::api::server::bus();
-            crate::api::page_ops::install(&account.id, webview, bus);
+            // REPLACE the bridge: the webview was created fresh, so any
+            // previous bridge for this account pointed at a destroyed view
+            // (close + re-open flows) and every automation call would time
+            // out against a dead target.
+            crate::api::page_ops::replace(&account.id, webview, bus);
             // Fresh view: pin the profile's color scheme to the shell theme
             // BEFORE WhatsApp's own boot code reads the media feature.
             apply_theme_everywhere(app);
@@ -604,6 +687,9 @@ pub fn hide_account_content(app: &AppHandle, _id: &str) -> tauri::Result<()> {
 pub fn close_account_webview(app: &AppHandle, id: &str) {
     let label = account_webview_label(id);
     let was_active = active_content().as_deref() == Some(label.as_str());
+    // Cancel the bridge FIRST (its poller holds a Webview handle of the
+    // view being destroyed).
+    crate::api::page_ops::remove(id);
     if let Some(webview) = app.get_webview(&label) {
         let _ = webview.close();
     }
@@ -876,8 +962,24 @@ pub fn handle_tray_menu_event(app: &AppHandle, event_id: &str) {
     }
 }
 
+/// True when the process was spawned by the Windows Run-key autostart
+/// entry, which passes the `/startminimized` argument (see apply_autostart).
+/// Manual launches (icon clicks) do not pass it and always show the window.
+#[cfg(windows)]
+fn launched_by_autostart() -> bool {
+    std::env::args()
+        .any(|arg| arg == "/startminimized" || arg == "--startminimized")
+}
+
+#[cfg(not(windows))]
+fn launched_by_autostart() -> bool {
+    false
+}
+
 /// Windows: register/unregister Zapdude in the HKCU Run key so it launches
-/// when the user logs in (no admin needed).
+/// when the user logs in (no admin needed). The registered command carries
+/// `/startminimized` so the auto-launched instance stays in the tray while
+/// manual launches still open the window.
 #[cfg(windows)]
 pub fn apply_autostart(enable: bool) -> Result<(), String> {
     use winreg::enums::{HKEY_CURRENT_USER, KEY_QUERY_VALUE, KEY_SET_VALUE};
@@ -891,7 +993,8 @@ pub fn apply_autostart(enable: bool) -> Result<(), String> {
         .map_err(|err| err.to_string())?;
     if enable {
         let exe = std::env::current_exe().map_err(|err| err.to_string())?;
-        run.set_value("Zapdude", &exe.to_string_lossy().to_string())
+        let command = format!("\"{}\" /startminimized", exe.to_string_lossy());
+        run.set_value("Zapdude", &command)
             .map_err(|err| err.to_string())
     } else {
         match run.delete_value("Zapdude") {
