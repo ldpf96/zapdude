@@ -1,6 +1,9 @@
 # Zapdude debug eval helper.
 # Usage: .\tools\debug-eval.ps1 -Script "<js expression>" [-Account account-1] [-All]
 # Or:    .\tools\debug-eval.ps1 -ScriptFile some-script.js [-Account account-1]
+#
+# The API key is NEVER hard-coded here: it is read at runtime from the
+# app's config file, so key rotations never touch the repository.
 param(
     [string]$Script,
     [string]$ScriptFile,
@@ -15,7 +18,16 @@ if ($ScriptFile) {
     $Script = [System.IO.File]::ReadAllText($path)
 }
 if (-not $Script) { throw "script required (-Script or -ScriptFile)" }
-$key = "zpk_846b54feb07ac04601129f85f3353cf73c6f9ac44c73c71e300740850251543d"
+$configPath = Join-Path $env:APPDATA "app.zapzap.desktop\config.json"
+$key = ""
+try {
+    $key = [string]((Get-Content $configPath -Raw | ConvertFrom-Json).api.apiKey)
+} catch {
+    $key = ""
+}
+if (-not $key) {
+    throw "could not read the API key from $configPath (is Zapdude installed and started once?)"
+}
 $payload = @{ script = $Script }
 if ($Account) { $payload.account = $Account }
 if ($All) { $payload.all = $true }

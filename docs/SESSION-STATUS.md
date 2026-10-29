@@ -235,6 +235,15 @@
 
 - Remote: `https://ldpf96@github.com/ldpf96/zapdude.git` (username-
   anchored).
+- **Secret hygiene (2026-10-29)**: the day's helper scripts initially
+  hard-coded the loopback API key and got pushed (tools/debug-eval.ps1,
+  tools/sse-listen.cmd). Scrubbed the same session: both helpers now
+  read the key at runtime from
+  `%APPDATA%\app.zapzap.desktop\config.json`, and the API key was
+  ROTATED afterwards - the key inside the pushed git history is DEAD
+  (no value left for anyone). The key is only meaningful to local
+  processes anyway (the API binds 127.0.0.1 unless expose_network is
+  switched on). Keep the runtime-read pattern for any future helper.
 - Two credentials exist locally: Git Credential Manager OAuth
   (`gho_...`, scopes `gist, read:org, repo` - NO workflow scope) and a
   classic PAT the user pasted in chat (scopes `repo, workflow`). The
@@ -245,9 +254,8 @@
   pushes work with the stored OAuth token.
 - GitHub CLI exists at `C:\Program Files\GitHub CLI\gh.exe` but is not
   on PATH; invoke with the full path if needed.
-- The tag push trigger of the release workflow did not fire for
-  v1.2.0 (new workflow + same-session push); workflow_dispatch through
-  the API worked. Keep an eye on it for the next tag.
+- The v1.2.1 tag push DID fire the release workflow (the tag-delete +
+  re-tag cycle also works cleanly).
 
 ## Pending (next candidates, user decides)
 
