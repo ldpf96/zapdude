@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <!-- Merged into the generated Info.plist at bundle time.
+       Usage descriptions for the permissions WhatsApp Web calls request:
+       mic and camera for voice/video calls, screen recording for the
+       share-screen flow. Without these the first call on a fresh Mac
+       cannot reach the permission prompt meaningfully. -->
+  <dict>
+    <key>NSCameraUsageDescription</key>
+    <string>Zapdude needs the camera for WhatsApp video calls placed inside your chats.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Zapdude needs the microphone for WhatsApp voice and video calls placed inside your chats.</string>
+    <key>NSScreenCaptureUsageDescription</key>
+    <string>Zapdude needs screen access when you share your screen during a WhatsApp call.</string>
+  </dict>
+</plist>
