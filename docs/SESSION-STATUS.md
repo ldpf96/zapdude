@@ -4,12 +4,12 @@
 > 2026-10-29 (working tree past v1.2.0, pre-release; features below need
 > a version bump once the user signs off).
 
-> **STATE OF THE WORLD**: v1.2.0 is live at
-> https://github.com/ldpf96/zapdude/releases/tag/v1.2.0 with CI-built
-> artifacts (macOS .dmg aarch64 + x64, Windows NSIS). Since then, a fresh
-> feature set was built and live-verified against the installed runtime
-> (see "What changed in v1.2.1" below); it is committed but NOT yet
-> released. The app is named **Zapdude** ("dude" lowercase, first letter
+> **STATE OF THE WORLD**: v1.2.1 is live at
+> https://github.com/ldpf96/zapdude/releases/tag/v1.2.1 with CI-built
+> artifacts (macOS .dmg aarch64 + x64 with macOS 13 minimum and the
+> privacy plist keys; Windows NSIS). v1.2.0 remains live for older
+> installs. Download site resolves the latest release automatically.
+> The release body documents the Ventura caveat and the 1.2.1 highlights. The app is named **Zapdude** ("dude" lowercase, first letter
 > capital). Repo text is ENGLISH; chat with the user is Spanish.
 
 ## What changed in v1.2.1 (working epoch, knowledge for future sessions)
@@ -200,6 +200,16 @@
    about:blank; the drawer search flow is the reliable opener.
 10. API rate limit (60/min) is shared with live debug monitors - the
     debug auth path skips it, keep debug polling on that path.
+11. Crates with unguarded target deps go in
+    `[target.'cfg(windows)'.dependencies]`, not `[dependencies]`
+    (tauri-winrt-notification drags windows 0.62 -> windows-future 0.3.2
+    into the macOS graph and both mac CI jobs failed to compile; the
+    gated move restored the green build).
+12. The user's family Mac runs macOS 13.7 (Ventura): the v1.2.1 build
+    opened LSMinimumSystemVersion to 13.0 and shipped usage-description
+    plist keys for mic/camera/screen. State on Ventura is EXPERIMENTAL
+    (the multi-webview engine is verified on macOS 14+); the release body
+    and Pending item 5 carry this.
 
 ## Git / GitHub / auth state
 
