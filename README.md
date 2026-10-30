@@ -1,8 +1,9 @@
 # Zapdude
 
-**Zapdude** is a multi account WhatsApp Web desktop client for Windows,
-written in **Rust** (Tauri 2 + WebView2). All your WhatsApp accounts live in
-a single window, with a local API so people and AI agents can operate them.
+**Zapdude** is a desktop chat hub for **WhatsApp and Messenger** (multi
+account, multi service) for Windows and macOS, written in **Rust** (Tauri 2 +
+WebView2). All your chats live in a single window, with a local API so people
+and AI agents can operate them.
 
 **Original project by [ldpf96](https://github.com/ldpf96)**, developed with
 an honest amount of AI assistance: the **OpenCode** agent harness driving
