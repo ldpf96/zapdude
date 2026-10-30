@@ -494,6 +494,38 @@ async fn ui_quit() -> (StatusCode, Json<Value>) {
     }
 }
 
+/// Last unread badge count per account id (page-sampled). The page
+/// watchers (`unread_watcher.js`, shared by both services + Messenger's
+/// title watcher) keep this fresh through the beacon transport; `/api/accounts`
+/// serves it without touching the page DOM. Reading account payloads is a
+/// hot path, hence the plain Mutex + OnceLock.
+static UNREAD_COUNTS: OnceLock<Mutex<HashMap<String, u32>>> = OnceLock::new();
+
+/// Store the freshest unread count of an account (page transport ingest).
+pub fn unread_store_set(account_id: &str, count: u32) {
+    let map = UNREAD_COUNTS.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Ok(mut guard) = map.lock() {
+        guard.insert(account_id.to_string(), count);
+    }
+}
+
+/// Drop an account's unread state (removed/closed accounts stop existing).
+pub fn unread_store_clear(account_id: &str) {
+    let map = UNREAD_COUNTS.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Ok(mut guard) = map.lock() {
+        guard.remove(account_id);
+    }
+}
+
+/// The account's last known unread count (0 when never sampled).
+fn unread_for(account_id: &str) -> u32 {
+    let map = UNREAD_COUNTS.get_or_init(|| Mutex::new(HashMap::new()));
+    map.lock()
+        .ok()
+        .and_then(|guard| guard.get(account_id).copied())
+        .unwrap_or(0)
+}
+
 async fn healthz() -> impl IntoResponse {
     json_ok(json!({
         "service": "zapdude-api",
@@ -514,7 +546,15 @@ async fn get_prefs() -> (StatusCode, Json<Value>) {
         "theme": prefs.theme,
         "autostart": prefs.autostart,
         "start_minimized": prefs.start_minimized,
+        "unread_badges": prefs.unread_badges,
     }))
+}
+
+/// `unread_badges` defaults ON: absent fields (older clients / scripts
+/// calling /api/prefs blind) keep the badges instead of silently
+/// switching them off.
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Deserialize)]
@@ -522,6 +562,8 @@ struct PrefsBody {
     theme: String,
     autostart: bool,
     start_minimized: bool,
+    #[serde(default = "default_true")]
+    unread_badges: bool,
 }
 
 async fn post_prefs(State(state): State<ApiState>, Json(body): Json<PrefsBody>) -> (StatusCode, Json<Value>) {
@@ -529,6 +571,7 @@ async fn post_prefs(State(state): State<ApiState>, Json(body): Json<PrefsBody>) 
         theme: body.theme,
         autostart: body.autostart,
         start_minimized: body.start_minimized,
+        unread_badges: body.unread_badges,
     }
     .sanitized();
     if let Err(err) = state.settings.update_prefs(prefs.clone()) {
@@ -553,6 +596,7 @@ async fn post_prefs(State(state): State<ApiState>, Json(body): Json<PrefsBody>) 
         "theme": prefs.theme,
         "autostart": prefs.autostart,
         "start_minimized": prefs.start_minimized,
+        "unread_badges": prefs.unread_badges,
     }))
 }
 
@@ -749,6 +793,7 @@ async fn list_accounts() -> (StatusCode, Json<Value>) {
                     == Some(crate::window::account_webview_label(&account.id).as_str()),
                 "session_state": cached
                     .unwrap_or_else(|| "detecting".to_string()),
+                "unread": unread_for(&account.id),
             })
         })
         .collect();
@@ -1278,6 +1323,9 @@ async fn webhook_post(
 #[derive(Deserialize)]
 struct DebugEvalBody {
     account: Option<String>,
+    /// Shell webview label (rail / welcome / drawer): evaluates directly
+    /// into that view (debug-only channel; never a production path).
+    label: Option<String>,
     script: String,
     all: Option<bool>,
 }
@@ -1346,6 +1394,30 @@ async fn debug_eval(
         "JSON.stringify(function(){{ try {{ return ({}); }} catch (error) {{ return {{ eval_error: String(error && error.message || error) }}; }} }}())",
         body.script
     );
+    // Shell webviews first (label wins over account): rail/welcome/drawer
+    // pages carry no bridge, so they get the direct evaluator. The
+    // whitelist keeps the channel scoped to OUR shell pages.
+    if let Some(label) = body
+        .label
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        if !matches!(label, "rail" | "welcome" | "drawer") {
+            return json_error(&ApiError::bad_request("unknown shell webview label"));
+        }
+        let Some(app_handle) = crate::APP_HANDLE.get() else {
+            return json_error(&ApiError::internal("app handle not available"));
+        };
+        let Some(webview) = app_handle.get_webview(label) else {
+            return json_error(&ApiError::unavailable("shell webview not found"));
+        };
+        let value = match crate::api::page_ops::PageBridge::eval_in(webview, wrapped).await {
+            Ok(inner) => inner,
+            Err(err) => json!({ "eval_error": err.message }),
+        };
+        return json_ok(json!({ label: value }));
+    }
     let mut results = serde_json::Map::new();
     if body.all == Some(true) {
         for account in state.settings.current_accounts() {

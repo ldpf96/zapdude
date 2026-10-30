@@ -74,6 +74,8 @@ const API_PAGE_BRIDGE_SCRIPT: &str = include_str!("../scripts/api_page_bridge.js
 const FACEBOOK_BRIDGE_SCRIPT: &str = include_str!("../scripts/facebook_bridge.js");
 const HIDE_DOWNLOAD_BANNERS_SCRIPT: &str = include_str!("../scripts/hide_download_banners.js");
 const CALL_ANCHOR_SCRIPT: &str = include_str!("../scripts/call_anchor.js");
+
+const UNREAD_WATCHER_SCRIPT: &str = include_str!("../scripts/unread_watcher.js");
 const CALL_STYLE_SCRIPT: &str = include_str!("../scripts/call_style.js");
 const NOTIFICATION_HOOK_SCRIPT: &str = include_str!("../scripts/notification_hook.js");
 const SW_GUARD_SCRIPT: &str = include_str!("../scripts/sw_guard.js");
@@ -345,6 +347,12 @@ pub fn deferred_scripts(service: Option<&str>) -> Vec<(&'static str, &'static st
     // incoming messages.
     if want("scripts2") {
         pairs.push(("__zapdudeNotifyV1", NOTIFICATION_HOOK_SCRIPT));
+        // The unread badge source: every account page (both services)
+        // samples its own document title (WhatsApp + Messenger both
+        // publish "(n) ..." natively) and keeps the host's per-account
+        // store fresh. Cheap, drift-proof, and the rail badge + the
+        // drawer toggle consume the same data.
+        pairs.push(("__zapdudeUnreadV1", UNREAD_WATCHER_SCRIPT));
     }
     if !is_facebook && want("scripts3") {
         pairs.push(("__zapdudeCallAnchor", CALL_ANCHOR_SCRIPT));

@@ -220,6 +220,13 @@
           </div>
           <label class="switch"><input type="checkbox" id="startMinimized"><span class="track"></span></label>
         </div>
+        <div class="row">
+          <div>
+            <label>Unread badges</label>
+            <div class="hint">Mobile-style count bubble on each account tile in the rail</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="unreadBadges"><span class="track"></span></label>
+        </div>
       </div>
     </div>
 
@@ -355,6 +362,7 @@
         applyTheme(prefs.theme);
         $("autostart").checked = prefs.autostart;
         $("startMinimized").checked = prefs.start_minimized;
+        $("unreadBadges").checked = prefs.unread_badges !== false;
       } catch (e) { toast("Could not read preferences"); }
     }
 
@@ -364,6 +372,7 @@
           theme: $("themeLight").checked ? "light" : "dark",
           autostart: $("autostart").checked,
           start_minimized: $("startMinimized").checked,
+          unread_badges: $("unreadBadges").checked,
         })});
         applyTheme(prefs.theme);
         return prefs;
@@ -465,6 +474,7 @@
     $("themeLight").onchange = savePrefs;
     $("autostart").onchange = () => { savePrefs(); };
     $("startMinimized").onchange = savePrefs;
+    $("unreadBadges").onchange = savePrefs;
 
     $("closeBtn").onclick = () => api("/api/ui/drawer", { method: "POST" }).catch(console.error);
 

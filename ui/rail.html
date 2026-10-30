@@ -127,6 +127,26 @@
     .dot.detecting { background: #5f7a70; }
     .dot.err { background: var(--danger); }
 
+    /* ---- Unread badge (mobile-style count bubble) ----
+       Top-right corner; the session status dot owns the bottom-right.
+       The count comes from the account's own page title (see
+       scripts/unread_watcher.js) - one truthful number, no selectors. */
+    .avatar .badge {
+      position: absolute; right: -6px; top: -5px;
+      min-width: 18px; height: 18px;
+      padding: 0 5px;
+      border-radius: 10px;
+      background: var(--accent); color: #06231a;
+      font-size: 10.5px; font-weight: 750;
+      line-height: 15px; text-align: center;
+      border: 2px solid var(--dot-border);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255,255,255,0.25);
+      display: none;
+      z-index: 5;
+    }
+    .avatar .badge.on { display: block; }
+    body.badges-off .avatar .badge { display: none !important; }
+
     .add-btn {
       background: var(--tile);
       border: 1.5px dashed rgba(46, 224, 111, 0.4);
@@ -276,10 +296,14 @@
     }
 
     // Theme follows the saved preference (checked on every poll, cheap).
+    // The same payload owns the unread-badge pref: the rail badge hides
+    // entirely when the user switched it off (CSS-level, so stale counts
+    // in the data can never pop a bubble back in a poll beat).
     async function loadTheme() {
       try {
         const prefs = await api("/api/prefs");
         document.documentElement.dataset.theme = prefs.theme === "light" ? "light" : "dark";
+        document.body.classList.toggle("badges-off", prefs.unread_badges === false);
       } catch (_) { /* keep current */ }
     }
 
@@ -334,6 +358,7 @@
           el.dataset.id = a.id;
           el.innerHTML = `<svg class="icon"><use href="#i-wa"/></svg>` +
             `<span class="dot"></span>` +
+            `<span class="badge"></span>` +
             `<span class="tooltip"></span>`;
           el.onclick = async () => {
             if (armedId === a.id) {
@@ -357,6 +382,14 @@
           (a.active ? " active" : "") + (isArmed ? " armed" : "");
         el.querySelector("use").setAttribute("href", isArmed ? "#i-x" : serviceGlyph(a));
         el.querySelector(".dot").className = "dot " + state;
+        // Unread bubble (top-right): the count travels with /api/accounts
+        // (page-sampled title badge). "99+" clamps runaway counters.
+        const unread = (typeof a.unread === "number" && a.unread > 0)
+          ? (a.unread > 99 ? "99+" : String(a.unread))
+          : "";
+        const badge = el.querySelector(".badge");
+        badge.textContent = unread;
+        badge.classList.toggle("on", unread !== "");
         const tip = el.querySelector(".tooltip");
         tip.textContent = isArmed ? "Click again to delete" : `${a.label} - ${serviceName(a)} - ${stateLabel}`;
       });

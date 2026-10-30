@@ -15,6 +15,23 @@ Keep a Changelog; versioning is SemVer.
   announcement links straight to the release page. GitHub payload
   fields are shape-checked before they ever touch innerHTML.
 
+## [1.3.2] - 2026-10-30
+
+### Added
+- **Unread badges on the rail account tiles** (the user's request: the
+  mobile-style count bubble). Each account page samples its OWN
+  document title (`(4) WhatsApp` / `(12) Messenger`) through a shared
+  drift-proof watcher (`unread_watcher.js`, 3s pacing, ships on
+  change); the beacon transport normalizes both services'
+  writer paths (`unread` + Messenger's `title_badge`) into a fresh
+  per-account store, `/api/accounts` carries `unread`, and the rail
+  paints a green count bubble on the tile's top-right corner (the
+  session dot keeps the bottom). 99+ clamp, silver 0 = hidden.
+- **The toggle**: a new "Unread badges" switch in the drawer
+  Preferences (new `unread_badges` pref, serde default ON so older
+  configs read unchanged). Off = the bubble class drops at CSS level
+  (stale counts can never pop a bubble back mid-poll).
+
 ## [1.3.1] - 2026-10-31
 
 ### Fixed

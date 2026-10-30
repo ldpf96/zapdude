@@ -145,6 +145,11 @@ pub struct AppPrefs {
     pub autostart: bool,
     /// Start hidden in the tray instead of showing the window.
     pub start_minimized: bool,
+    /// Unread count bubbles on the rail account tiles (the mobile-style
+    /// badge). Defaults to true; new fields must keep the same default
+    /// story so a config written by an older build still parses.
+    #[serde(default = "crate::config::default_unread_badges")]
+    pub unread_badges: bool,
 }
 
 impl Default for AppPrefs {
@@ -153,6 +158,7 @@ impl Default for AppPrefs {
             theme: "dark".to_string(),
             autostart: false,
             start_minimized: false,
+            unread_badges: true,
         }
     }
 }
@@ -166,6 +172,12 @@ impl AppPrefs {
         };
         self
     }
+}
+
+/// serde default hook for `AppPrefs::unread_badges` (keep ON for configs
+/// that predate the field).
+fn default_unread_badges() -> bool {
+    true
 }
 
 /// Whole configuration file shape.

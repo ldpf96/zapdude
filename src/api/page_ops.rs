@@ -156,6 +156,9 @@ pub fn remove(account_id: &str) {
             bridge.cancel();
         }
     }
+    // The account's page sources stopped feeding the badge store: drop its
+    // last count so a removed account never leaves a stale bubble behind.
+    super::server::unread_store_clear(account_id);
 }
 
 /// Resolve an account's service defensively at bridge-install time
@@ -216,6 +219,21 @@ pub struct PageBridge {
     cancelled: std::sync::atomic::AtomicBool,
 }
 
+/// Normalize a page payload into an unread badge count. Sources:
+/// `unread` (the shared title watcher: `{kind, count}`) and `title_badge`
+/// (Messenger's bridge: `{kind, badge}`). Anything else -> None.
+fn unread_count_from(payload: &Value) -> Option<u32> {
+    let kind = payload.get("kind").and_then(Value::as_str)?;
+    if kind != "unread" && kind != "title_badge" {
+        return None;
+    }
+    let raw = payload
+        .get("count")
+        .and_then(Value::as_u64)
+        .or_else(|| payload.get("badge").and_then(Value::as_u64))?;
+    Some((raw.min(999)) as u32)
+}
+
 /// Serialize send flows guard before `PageBridge` fields; poll helper below.
 impl PageBridge {
     /// Evaluator used by every automation op; reports cancelled state.
@@ -249,6 +267,10 @@ impl PageBridge {
         };
         let id = envelope.get("id").and_then(Value::as_str).unwrap_or("");
         let payload = envelope.get("payload").cloned().unwrap_or(json!(null));
+        // The badge store reads FIRST: the enriched match below CONSUMES
+        // the payload value, so the unread normalization must complete
+        // before ownership moves.
+        let unread_count = unread_count_from(&payload);
         if id.starts_with("evt_") {
             // Tag every incoming event with the originating account AND its
             // service (additive fields: existing consumers keep working).
@@ -267,11 +289,24 @@ impl PageBridge {
             };
             self.bus.emit("incoming", enriched);
         }
+        // The badge store updates OUTSIDE the evt_ envelope path: page
+        // watchers emit lightweight events whose only destination is
+        // /api/accounts (the rail badge); they never belong in the
+        // notification ring.
+        if let Some(count) = unread_count {
+            super::server::unread_store_set(&self.account_id, count);
+        }
         Ok(())
     }
 
     /// Evaluate a page script and await its JSON-serialized result.
-    pub async fn evaluate(&self, script: String) -> Result<Value, ApiError> {
+    /// Shared by every caller (account bridges + shell webviews via the
+    /// debug harness): WebView2's double-encoded string quirk and the
+    /// bridge-absent oneshot handling live here ONCE.
+    pub async fn eval_in(
+        window: Webview<Wry>,
+        script: String,
+    ) -> Result<Value, ApiError> {
         // The callback contract is `Fn` (may fire once per evaluation), so
         // the one-shot sender is parked behind interior mutability.
         let (sender, receiver) = oneshot::channel::<String>();
@@ -284,7 +319,7 @@ impl PageBridge {
                 }
             }
         };
-        if let Err(eval_failure) = self.window.eval_with_callback(script, deliver) {
+        if let Err(eval_failure) = window.eval_with_callback(script, deliver) {
             return Err(ApiError::unavailable(format!(
                 "page evaluation failed: {}",
                 eval_failure
@@ -327,6 +362,11 @@ impl PageBridge {
                 Ok(value)
             }
         }
+    }
+
+    /// Evaluate via this bridge's own webview.
+    pub async fn evaluate(&self, script: String) -> Result<Value, ApiError> {
+        Self::eval_in(self.window.clone(), script).await
     }
 
     fn bridge_expression(&self, operation: &str, args: &str) -> String {
