@@ -531,22 +531,15 @@
 
 ## Pending (the NEXT session opens on these)
 
-1. **CHECK FIRST (2026-10-31 evening, user went to rest mid-cycle):**
-   was the v1.3.3 auto-publish fired? An armed script
-   (`%TEMP%\opencode\auto-publish-133.ps1` / \opencode session bg, log
-   at `%TEMP%\opencode\auto-publish-133.log`) waits for CI
-   41119252254 (v1.3.3 gray-pane hotfix) and runs publish-133: release
-   body = docs/release-notes-1.3.3.md + --latest, downloads the REAL
-   CI artifact, installs silently on the user's PC, launches. If any
-   of these is false, finish manually:
-   - `gh api repos/ldpf96/zapdude/releases/latest --jq .tag_name` == v1.3.3
-   - `%LOCALAPPDATA%\Zapdude\zapdude.exe` ProductVersion == 1.3.3
-   - open a chat in the app -> conversation renders (no gray)
+1. DONE 2026-10-30 15:03 (night, auto): **v1.3.3 published + installed
+   by the armed script** - CI success -> release body patched ->
+   artifact (SHA256 1E90F95D...) installed -> app launched -> 
+   `releases/latest` = v1.3.3. FINAL VERIFIED even in the installed
+   build: open-chat -> conversation fully rendered (header + call log
+   + composer, zero gray) with the unread badges alive (4/10).
    THE LESSON lives in the STATE OF THE WORLD block: no
    element-painting hides / ancestor climbs near shared containers -
-   selector rules only. If the auto-publish did NOT fire: just rerun
-   `%TEMP%\opencode\publish-133.ps1` after the CI turns green (gh run
-   view 41119252254).
+   selector rules only.
 2. AUTO-UPDATER: light tier SHIPPED (drawer button). Remaining: the
    DEEP tier - tauri-plugin-updater with release signing keys for true
    one-click self-updates.
