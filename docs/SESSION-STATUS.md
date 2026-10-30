@@ -5,21 +5,22 @@
 > THE WORLD block below; the 2026-10-30 closing block at the end holds
 > the call/notifications history).
 
-> **STATE OF THE WORLD** (2026-10-31 afternoon): repo main -> origin
-> ldpf96/zapdude; **v1.3.1 LIVE + installed on the user's PC** (CI green,
-> release latest, site pointed at it). The AFTERNOON added the user's
-> request: **unread badges on the rail tiles** (mobile-style count
-> bubble) - fully verified live: title `(4)/(12)` -> watcher/store ->
-> /api/accounts -> badge paint; drawer toggle OFF hides (computed
-> display:none) and ON repaints in one poll beat; plus the drawer
-> "Search updates" button (light updater tier). Bundle = **v1.3.2**
-> (version bumped, CHANGELOG + release-notes-1.3.2 written, commit
-> 10da1b2 + tag pushed, CI 41117340271 running at cut time; site story
-> pointed at 1.3.2 = fe4b710; backups stable-dev-20261030-144235).
-> Publish-1.3.2 flow ready (docs/release-notes-1.3.2.md body + real
-> CI-artifact install). The debug harness now evaluates shell webviews
-> by label (rail/welcome/drawer) - the live DOM instrument. 21/21 tests
-> green.
+> **STATE OF THE WORLD** (2026-10-31 evening): repo main -> origin
+> ldpf96/zapdude; **v1.3.2 LIVE + installed** (badges + updater button).
+> The EVENING shipped a serious hotfix the user reported IN PRODUCTION:
+> **clicking a chat left the right pane GRAY** (read-marked but never
+> rendered). Root cause: the empty-state promo hide PAINTED display:none
+> on the card and climbed collapsible ancestors - the card sits HIGH in
+> the right pane's tree; during WhatsApp's intro->chat transitions a
+> sweep caught a transient with only hidden children and collapsed a
+> SHARED container the conversation mounts into. FIX (1.3.3, verified
+> live: open-chat -> #main rendered + composer visible): the hide is a
+> SELECTOR RULE now (style tag, intro_panel_v2_title_card - same
+> technique as call styling), never element painting, never ancestor
+> climbing. **LESSON for future session: element-painting hides +
+> ancestor climbs are FORBIDDEN near shared containers - selector rules
+> only.** v1.3.3 cut: commit e418bea + tag -> CI 41119252254; publish
+> staged (publish-133 flow).
 
 > Older STATE block (2026-10-30 mid-session, superseded): v1.2.1 is the
 > last PUBLISHED release; the user's PC runs the OLD **v1.2.0** installer
@@ -530,13 +531,12 @@
 
 ## Pending (the NEXT session opens on these)
 
-1. DONE 2026-10-31 14:39: **v1.3.2 cut** - unread badges (live-verified
-   end-to-end: data pipeline + drawer toggle off/on with DOM + visual
-   proof both sides) + the drawer Search-updates button riding along;
-   commit 10da1b2 + tag v1.3.2 pushed; CI 41117340271 building at
-   status-time; publish flow staged (docs/release-notes-1.3.2.md +
-   publish-132 flow: body patch, install the REAL CI artifact,
-   relaunch). Site story pointed at 1.3.2 (fe4b710).
+1. DONE 2026-10-31 evening: **v1.3.3 gray-pane hotfix cut** - commit
+   e418bea + tag v1.3.3, CI 41119252254 building; publish staged. THE
+   LESSON lives in the STATE OF THE WORLD block: no element-painting
+   hides / ancestor climbs near shared containers - selector rules
+   only. (v1.3.2 treasures live: unread badges + drawer toggle
+   verified both directions.)
 2. AUTO-UPDATER: light tier SHIPPED (drawer button). Remaining after
    1.3.2: the DEEP tier - tauri-plugin-updater with release signing
    keys for true one-click self-updates.
