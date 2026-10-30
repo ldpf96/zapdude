@@ -1,11 +1,33 @@
 # Session status - Zapdude (Rust)
 
 > Continuity document for AI agents and future sessions. Last updated:
-> 2026-10-30 SESSION CLOSE - v1.3.0 cut (see the closing block at the
-> end). The working tree carries what releases need; features below were
-> verified live where marked.
+> 2026-10-31 morning - post-1.3.0 user-report fixes (see the STATE OF
+> THE WORLD block below; the 2026-10-30 closing block at the end holds
+> the call/notifications history).
 
-> **STATE OF THE WORLD** (updated 2026-10-30 mid-session): v1.2.1 is the
+> **STATE OF THE WORLD** (2026-10-31): the repo IS a git repo (main ->
+> origin ldpf96/zapdude); **v1.3.0 is PUBLISHED and LIVE** - GitHub
+> release with 5 CI artifacts (run 41089046316 green, body = release
+> notes, --latest), site updated for 1.3.0 with its own AGPL-3.0
+> LICENSE file (ldpf96.github.io/zapdude-site, commit b8550b9), and the
+> user's PC runs the INSTALLED v1.3.0 (their start-menu-click bug is
+> dead with it). The 2026-10-31 MORNING session fixed the three
+> user-reported cosmetic leaks from their real-call validation: (1)
+> missed-call toasts reuse the clean ring avatar through the new
+> `window.__zapdudeCallerIcon` store (notification_hook swap; no more
+> WhatsApp-badge composite), (2) WhatsApp's v2 empty-state promo card
+> dies by its own testid `intro_panel_v2_title_card`
+> (hide_download_banners), (3) with accounts configured the welcome
+> webview boots as a pure `?splash=1` brand beat - the full
+> "create an account" picker belongs to the no-accounts state only
+> (create_shell gate + welcome.html splash variant + delete-last
+> re-navigation). ALL THREE verified live (frame captures + a real
+> API call cycle: the missed event's icon equals the ring surface's
+> CDN avatar URL). 21/21 tests green. Working tree = v1.3.1 (version
+> bumped in Cargo.toml + tauri.conf.json, CHANGELOG section written);
+> **not pushed/tagged yet - see pending list**.
+
+> Older STATE block (2026-10-30 mid-session, superseded): v1.2.1 is the
 > last PUBLISHED release; the user's PC runs the OLD **v1.2.0** installer
 > edition (their "start-menu click does nothing / opens only in the tray"
 > symptoms: both fixed since 1.2.1 - second-launch `/api/ui/show` ping +
@@ -514,25 +536,22 @@
 
 ## Pending (the NEXT session opens on these)
 
-1. PUBLISH v1.3.0 (user approved the flow): the local folder is NOT a git
-   repo yet - `git init` + `remote add origin
-   https://github.com/ldpf96/zapdude.git`, commit (English message),
-   tag `v1.3.0`, push → CI builds macOS dmg + Windows NSIS; PATCH the
-   release body with `docs/release-notes-1.3.0.md` (PS 5.1
-   `[System.IO.File]::ReadAllText` + UTF8-bytes pattern for the body).
-   THEN install the fresh NSIS on the user's PC (quit the running dev
-   instance first; the install also cures the v1.2.0 start-menu dead
-   clicks). The stale 09:37 NSIS bundle must NOT ship.
+1. PUBLISH v1.3.1 (tree ready, 2026-10-31 morning; user go-ahead
+   pending - asked): the three post-1.3.0 user-report fixes are in and
+   verified live (missed-call icon swap, empty-state promo kill,
+   welcome splash gate). Flow: commit (English) -> tag `v1.3.1` ->
+   push -> CI -> patch the release body -> install the fresh NSIS on
+   the user's PC (kill running Zapdude first; single-instance mutex).
 2. AUTO-UPDATER (user request, "chicharron"): a Check-for-updates button
    inside the app querying the GitHub releases endpoint (lightweight:
    compare versions, notify, open the release page); deeper tier:
    tauri-plugin-updater with release signing keys for true one-click
-   self-updates. Next session scope.
-3. Square-toast final confirmation: the sw_guard is bus-verified
-   (`sw_guard` events, 2 registrations killed) but the square never
-   reproduced under automated cycles - ONE real incoming call from the
-   user is the closing test (also confirms the ring sound still plays
-   without the worker).
+   self-updates.
+3. DONE 2026-10-31: the user's real-call validation passed (one branded
+   toast per event, missed-call photo+name, uniform sizes, ring sound
+   alive without the service worker) - the two cosmetic leaks it
+   exposed (missed-call icon composite, empty-state promo card) and the
+   welcome flash are the 1.3.1 fixes above.
 4. Facebook phase 2: only meaningful once a Facebook account exists -
    the user clarified they never added one intentionally (the earlier
    account-3 was a dev-test fixture and left the config). Re-add via the

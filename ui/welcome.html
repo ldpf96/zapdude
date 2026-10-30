@@ -53,6 +53,12 @@
       background: #1877f2; color: #ffffff;
       box-shadow: 0 6px 22px rgba(24,119,242,0.4);
     }
+    /* ?splash=1 boot-with-accounts variant: the brand beat only. The full
+       picker (tagline + add buttons) belongs to the no-accounts state - a
+       complete picker that flashes for a second at every startup and can
+       never be reached again is confusion, not UI (user note 2026-10-31). */
+    body.splash #msg, body.splash .choices { display: none; }
+    body.splash .logo { width: 84px; height: 84px; }
   </style>
 </head>
 <body>
@@ -87,6 +93,11 @@
     }
 
     document.documentElement.dataset.theme = "dark";
+    // ?splash=1: the shell booted WITH accounts - render the brand beat
+    // (logo + name) only; an account webview replaces this view in a beat.
+    if (new URLSearchParams(location.search).get("splash") === "1") {
+      document.body.classList.add("splash");
+    }
     api("/api/prefs").then((prefs) => {
       document.documentElement.dataset.theme = prefs.theme === "light" ? "light" : "dark";
     }).catch(() => {});

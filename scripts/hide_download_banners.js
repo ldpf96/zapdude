@@ -220,6 +220,7 @@
                 }
             }
             hideLandingPromoCard();
+            hideEmptyStateCard();
         } catch (_error) {
             // Never break the page because of cosmetics.
         }
@@ -268,6 +269,28 @@
                 }
             }
             hide(card || btn);
+        }
+    }
+
+    /// The v2 empty-state promo card (real testid census 2026-10-31): the
+    /// whole "Descarga WhatsApp para Windows / Obtén funciones adicionales,
+    /// como llamadas… / [Descargar]" en bloc carries its own testid. The
+    /// generic sweep cannot collapse it (the bare "Descargar" button is not
+    /// a promo-phrase match, so the ancestor climb bails on it) - but the
+    /// testid is WhatsApp's semantic marker for exactly this card, so the
+    /// hide is precise by construction. The action-tile row below it
+    /// (Enviar documento / Añadir contacto / Pregúntale a Meta AI) is
+    /// functional and stays.
+    function hideEmptyStateCard() {
+        try {
+            var cards = document.querySelectorAll(
+                '[data-testid="intro_panel_v2_title_card"]'
+            );
+            for (var i = 0; i < cards.length; i++) {
+                hide(cards[i]);
+            }
+        } catch (_error) {
+            // Never break the page because of cosmetics.
         }
     }
 

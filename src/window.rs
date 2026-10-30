@@ -634,6 +634,22 @@ fn relayout(window: &Window<Wry>) {
     }
 }
 
+/// Any ENABLED account configured? `create_shell` decides the welcome
+/// webview's variant from this single check: with accounts it boots as a
+/// pure brand splash (no picker), with none it boots as the real picker.
+fn has_enabled_accounts() -> bool {
+    crate::SHARED
+        .get()
+        .map(|shared| {
+            shared
+                .settings
+                .current_accounts()
+                .iter()
+                .any(|account| account.enabled)
+        })
+        .unwrap_or(false)
+}
+
 /// Create the shell window: rail webview + welcome backdrop, then show it
 /// (unless the user chose "start minimized" - then only the tray exists
 /// until the user opens the window from the tray).
@@ -662,9 +678,21 @@ pub fn create_shell(app: &AppHandle) -> tauri::Result<()> {
     let content = content_size(&window)?;
     let base = ui_base_url();
     let rail_url: url::Url = format!("{base}/").parse().expect("rail URL must parse");
-    let welcome_url: url::Url = format!("{base}/welcome")
-        .parse()
-        .expect("welcome URL must parse");
+    let welcome_url: url::Url = if has_enabled_accounts() {
+        // Booting WITH accounts: the welcome webview renders only the brand
+        // beat (?splash=1 strips the account picker). The full "create an
+        // account" screen flashing for one second at every startup read
+        // like a reachable destination - and nothing ever led back to it
+        // (the user: that screen belongs to the no-accounts state, where it
+        // is the real picker).
+        format!("{base}/welcome?splash=1")
+    } else {
+        // No accounts: the welcome IS the account picker (the WhatsApp /
+        // Messenger add buttons) - a real destination.
+        format!("{base}/welcome")
+    }
+    .parse()
+    .expect("welcome URL must parse");
 
     // 1. The Zapdude rail (always visible, always on the left).
     window.add_child(
@@ -880,6 +908,15 @@ fn open_first_remaining_or_welcome(app: &AppHandle) {
             }
         });
     } else {
+        // The welcome webview may still carry the ?splash=1 variant from a
+        // booted-with-accounts shell; the picker needs its add buttons back
+        // before it takes the screen.
+        let base = ui_base_url();
+        if let Some(webview) = app.get_webview("welcome") {
+            if let Ok(url) = format!("{base}/welcome").parse::<url::Url>() {
+                let _ = webview.navigate(url);
+            }
+        }
         let _ = show_content(app, "welcome");
     }
 }

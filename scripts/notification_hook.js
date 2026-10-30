@@ -45,25 +45,54 @@
         // title (WhatsApp's own choice). The ring relay teaches us the
         // handle -> display-name pairing just before the missed call
         // arrives, so the toast gets the human identity.
-        var shownTitle = String(title || '');
+        var origTitle = String(title || '');
+        var shownTitle = origTitle;
+        var shownIcon = '';
         try {
-            var map = window.__zapdudeCallerMap;
-            if (map && shownTitle.charAt(0) === '@') {
-                var mapped = map[shownTitle];
-                if (!mapped) {
-                    // Stored keys may carry fused trailing text from the
-                    // ring surface nodes ("@ldpfpeVoice") - a title of
-                    // "@ldpfpe" prefix-matches such a key.
-                    for (var key in map) {
-                        if (Object.prototype.hasOwnProperty.call(map, key)
-                            && key.indexOf(shownTitle) === 0) {
-                            mapped = map[key];
-                            break;
+            if (shownTitle.charAt(0) === '@') {
+                var map = window.__zapdudeCallerMap;
+                if (map) {
+                    var mapped = map[shownTitle];
+                    if (!mapped) {
+                        // Stored keys may carry fused trailing text from the
+                        // ring surface nodes ("@ldpfpeVoice") - a title of
+                        // "@ldpfpe" prefix-matches such a key.
+                        for (var key in map) {
+                            if (Object.prototype.hasOwnProperty.call(map, key)
+                                && key.indexOf(shownTitle) === 0) {
+                                mapped = map[key];
+                                break;
+                            }
                         }
                     }
+                    if (mapped && mapped.length >= 2 && mapped.length <= 40) {
+                        shownTitle = mapped;
+                    }
                 }
-                if (mapped && mapped.length >= 2 && mapped.length <= 40) {
-                    shownTitle = mapped;
+                // The missed-call Notification ships WhatsApp's OWN icon: a
+                // composite bitmap (photo re-cropped + WhatsApp badge
+                // stamped on) that breaks the round-brand toast look (user
+                // report, 2026-10-31). The ring surface that JUST preceded
+                // this call stored its clean channel avatar under the same
+                // handle key - reuse it so the missed toast wears the exact
+                // face the incoming toast wore. No ring seen -> keep
+                // WhatsApp's icon (degrade, never crash).
+                var icons = window.__zapdudeCallerIcon;
+                if (icons) {
+                    var missIcon = icons[origTitle];
+                    if (!missIcon) {
+                        for (var iconKey in icons) {
+                            if (Object.prototype.hasOwnProperty.call(icons, iconKey)
+                                && iconKey.indexOf(origTitle) === 0) {
+                                missIcon = icons[iconKey];
+                                break;
+                            }
+                        }
+                    }
+                    if (missIcon && missIcon.length <= 300000
+                        && (/^https:\/\//.test(missIcon) || /^data:/.test(missIcon))) {
+                        shownIcon = missIcon;
+                    }
                 }
             }
         } catch (_mapError) {}
@@ -71,7 +100,7 @@
             kind: kind,
             title: shownTitle,
             body: String((options && options.body) || ''),
-            icon: String((options && options.icon) || ''),
+            icon: shownIcon || String((options && options.icon) || ''),
             tag: String((options && options.tag) || ''),
             lang: String((options && options.lang) || ''),
             require_interaction: !!(options && options.requireInteraction),

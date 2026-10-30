@@ -3,6 +3,31 @@
 Notable changes to this project are documented here. The format follows
 Keep a Changelog; versioning is SemVer.
 
+## [1.3.1] - 2026-10-31
+
+### Fixed
+- Missed-call toasts now wear the SAME clean round avatar the incoming
+  ring toast used: the ring surface stores its channel avatar keyed by
+  the caller's handle (`window.__zapdudeCallerIcon`), and the
+  missed-call hook swaps WhatsApp's own composite icon for it (WhatsApp
+  ships a re-cropped photo with the WhatsApp badge stamped on - the
+  user called it out: "sale diferentemente ajustada y con el logo de
+  WhatsApp"). No ring seen -> the composite icon stays (degrade, never
+  crash). Verified live: the missed event's icon is the exact CDN URL
+  the ring surface carried, title mapped to the human name, silent.
+- WhatsApp Web's v2 empty-state promo card ("Descarga WhatsApp para
+  Windows / Obtén funciones adicionales, como llamadas…" with the
+  Descargar button) is now hidden by its own semantic testid
+  (`intro_panel_v2_title_card`) - the generic banner sweep could never
+  collapse it because the bare "Descargar" button text blocks the
+  ancestor climb. The functional action-tile row stays.
+- The "create an account" welcome screen no longer flashes for a second
+  at every startup when accounts exist: the shell boots the welcome
+  webview as a pure brand splash (`?splash=1`, logo only), and the full
+  picker only renders in the real no-accounts state - where it also
+  re-gains its add buttons on the delete-last-account path (it
+  re-navigates out of the splash variant before taking the screen).
+
 ## [1.3.0] - 2026-10-30
 
 ### Added

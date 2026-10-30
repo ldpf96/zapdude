@@ -153,14 +153,15 @@
             // this ring surface just taught us the caller's display
             // name. Stash handle -> name so the hook can label the
             // missed toast with the human identity too.
+            var handleKey = '';
             try {
                 var map = window.__zapdudeCallerMap || (window.__zapdudeCallerMap = {});
                 var handle = String(node.textContent || '').match(/@[A-Za-z0-9._\-]{3,32}/);
                 if (tidy && handle && tidy.indexOf('@') !== 0) {
                     // textContent fuses sibling nodes ("@ldpfpeVoice call")
                     // - crop the fused call word off the key.
-                    var key = handle[0].replace(/(Voice|Video|Call|Llamada|Llamando|Entrante).*$/i, '');
-                    map[key] = tidy;
+                    handleKey = handle[0].replace(/(Voice|Video|Call|Llamada|Llamando|Entrante).*$/i, '');
+                    map[handleKey] = tidy;
                 }
             } catch (_mapError) {}
             var payload = {
@@ -176,6 +177,24 @@
             callerAvatarDataUrl(node, function (avatar) {
                 if (avatar) {
                     payload.icon = avatar;
+                    // The handle -> clean-avatar pairing for the LATER
+                    // missed-call Notification, whose own icon is WhatsApp's
+                    // composite bitmap (re-cropped photo + badge). Same key
+                    // the name stash uses; notification_hook swaps the
+                    // missed toast's icon for this one (user report
+                    // 2026-10-31: the missed toast showed a different crop
+                    // with the WhatsApp logo stamped on).
+                    if (handleKey && avatar.length <= 300000) {
+                        try {
+                            var icons = window.__zapdudeCallerIcon
+                                || (window.__zapdudeCallerIcon = {});
+                            icons[handleKey] = avatar;
+                            var stored = Object.keys(icons);
+                            if (stored.length > 24) {
+                                delete icons[stored[0]];
+                            }
+                        } catch (_iconStashError) {}
+                    }
                 }
                 try {
                     if (window.__zapdudeApiV1 && typeof window.__zapdudeApiV1.pushEvent === 'function') {
