@@ -5,24 +5,21 @@
 > THE WORLD block below; the 2026-10-30 closing block at the end holds
 > the call/notifications history).
 
-> **STATE OF THE WORLD** (2026-10-31): the repo IS a git repo (main ->
-> origin ldpf96/zapdude); **v1.3.1 is PUBLISHED and LIVE** - GitHub
-> release with 5 CI artifacts (run 41100488092 green, body = release
-> notes, --latest via gh api), site pointing at the 1.3.1 story
-> (commit 3f4ce88), and the user's PC runs the INSTALLED v1.3.1 built
-> from the REAL CI artifact (SHA256 0C123365...; installed 12:42:48,
-> booted straight into the account, empty state without the promo
-> card). The 1.3.1 content = the three user-reported cosmetic fixes
-> (missed-call icon swap via `window.__zapdudeCallerIcon`, the v2
-> empty-state promo card dead by its testid `intro_panel_v2_title_card`,
-> welcome boots as a pure `?splash=1` brand beat with accounts) - all
-> verified live (frame captures + a real API call cycle: the missed
-> event's icon equals the ring surface's CDN avatar URL). 21/21 tests
-> green. ON MAIN AFTER THE TAG (ships in the next cut): the drawer
-> About card now carries a "Search updates" button - light tier of the
-> auto-updater (quiet once-per-open /releases/latest check announcing
-> only newer tags + a manual full-status check; version from
-> /api/healthz; defensive shape checks; opens the release page).
+> **STATE OF THE WORLD** (2026-10-31 afternoon): repo main -> origin
+> ldpf96/zapdude; **v1.3.1 LIVE + installed on the user's PC** (CI green,
+> release latest, site pointed at it). The AFTERNOON added the user's
+> request: **unread badges on the rail tiles** (mobile-style count
+> bubble) - fully verified live: title `(4)/(12)` -> watcher/store ->
+> /api/accounts -> badge paint; drawer toggle OFF hides (computed
+> display:none) and ON repaints in one poll beat; plus the drawer
+> "Search updates" button (light updater tier). Bundle = **v1.3.2**
+> (version bumped, CHANGELOG + release-notes-1.3.2 written, commit
+> 10da1b2 + tag pushed, CI 41117340271 running at cut time; site story
+> pointed at 1.3.2 = fe4b710; backups stable-dev-20261030-144235).
+> Publish-1.3.2 flow ready (docs/release-notes-1.3.2.md body + real
+> CI-artifact install). The debug harness now evaluates shell webviews
+> by label (rail/welcome/drawer) - the live DOM instrument. 21/21 tests
+> green.
 
 > Older STATE block (2026-10-30 mid-session, superseded): v1.2.1 is the
 > last PUBLISHED release; the user's PC runs the OLD **v1.2.0** installer
@@ -533,25 +530,22 @@
 
 ## Pending (the NEXT session opens on these)
 
-1. DONE 2026-10-30 12:56: **v1.3.1 published end-to-end** - commit
-   cacee08 + tag v1.3.1 -> CI 41100488092 GREEN -> release LIVE with 5
-   assets, body = release notes-1.3.1, --latest (gh api confirms
-   releases/latest = v1.3.1); site story pointed at 1.3.1 (3f4ce88);
-   user's PC installed FROM THE CI ARTIFACT (SHA256 0C123365...) and
-   running.
-2. AUTO-UPDATER: LIGHT TIER DONE on main (drawer "Search updates"
-   button, post-tag; ships with the next release). Remaining: the DEEP
-   tier - tauri-plugin-updater with release signing keys for true
-   one-click self-updates.
-3. DONE 2026-10-31: the user's real-call validation passed (one branded
-   toast per event, missed-call photo+name, uniform sizes, ring sound
-   alive without the service worker) - the two cosmetic leaks it
-   exposed (missed-call icon composite, empty-state promo card) and the
-   welcome flash are the 1.3.1 fixes above.
+1. DONE 2026-10-31 14:39: **v1.3.2 cut** - unread badges (live-verified
+   end-to-end: data pipeline + drawer toggle off/on with DOM + visual
+   proof both sides) + the drawer Search-updates button riding along;
+   commit 10da1b2 + tag v1.3.2 pushed; CI 41117340271 building at
+   status-time; publish flow staged (docs/release-notes-1.3.2.md +
+   publish-132 flow: body patch, install the REAL CI artifact,
+   relaunch). Site story pointed at 1.3.2 (fe4b710).
+2. AUTO-UPDATER: light tier SHIPPED (drawer button). Remaining after
+   1.3.2: the DEEP tier - tauri-plugin-updater with release signing
+   keys for true one-click self-updates.
+3. DONE 2026-10-31: real-call validation (missed-call photo+name,
+   uniform sizes, ring sound, no square toast) + the 1.3.1 fixes that
+   its feedback produced.
 4. Facebook phase 2: only meaningful once a Facebook account exists -
-   the user clarified they never added one intentionally (the earlier
-   account-3 was a dev-test fixture and left the config). Re-add via the
-   "+" strip when wanted; phase-1 contract stays untouched.
+   re-add via the "+" strip when wanted; phase-1 contract stays
+   untouched.
 5. Backlog (carried): Linux ubuntu matrix row in release.yml, macOS
    toast path (NSUserNotification), own-number endpoint.
 
