@@ -531,18 +531,27 @@
 
 ## Pending (the NEXT session opens on these)
 
-1. DONE 2026-10-31 evening: **v1.3.3 gray-pane hotfix cut** - commit
-   e418bea + tag v1.3.3, CI 41119252254 building; publish staged. THE
-   LESSON lives in the STATE OF THE WORLD block: no element-painting
-   hides / ancestor climbs near shared containers - selector rules
-   only. (v1.3.2 treasures live: unread badges + drawer toggle
-   verified both directions.)
-2. AUTO-UPDATER: light tier SHIPPED (drawer button). Remaining after
-   1.3.2: the DEEP tier - tauri-plugin-updater with release signing
-   keys for true one-click self-updates.
-3. DONE 2026-10-31: real-call validation (missed-call photo+name,
-   uniform sizes, ring sound, no square toast) + the 1.3.1 fixes that
-   its feedback produced.
+1. **CHECK FIRST (2026-10-31 evening, user went to rest mid-cycle):**
+   was the v1.3.3 auto-publish fired? An armed script
+   (`%TEMP%\opencode\auto-publish-133.ps1` / \opencode session bg, log
+   at `%TEMP%\opencode\auto-publish-133.log`) waits for CI
+   41119252254 (v1.3.3 gray-pane hotfix) and runs publish-133: release
+   body = docs/release-notes-1.3.3.md + --latest, downloads the REAL
+   CI artifact, installs silently on the user's PC, launches. If any
+   of these is false, finish manually:
+   - `gh api repos/ldpf96/zapdude/releases/latest --jq .tag_name` == v1.3.3
+   - `%LOCALAPPDATA%\Zapdude\zapdude.exe` ProductVersion == 1.3.3
+   - open a chat in the app -> conversation renders (no gray)
+   THE LESSON lives in the STATE OF THE WORLD block: no
+   element-painting hides / ancestor climbs near shared containers -
+   selector rules only. If the auto-publish did NOT fire: just rerun
+   `%TEMP%\opencode\publish-133.ps1` after the CI turns green (gh run
+   view 41119252254).
+2. AUTO-UPDATER: light tier SHIPPED (drawer button). Remaining: the
+   DEEP tier - tauri-plugin-updater with release signing keys for true
+   one-click self-updates.
+3. 1.3.2 treasures live (verified twice now): unread badges + drawer
+   toggle (and they saved the user's sanity while the gray bug hid).
 4. Facebook phase 2: only meaningful once a Facebook account exists -
    re-add via the "+" strip when wanted; phase-1 contract stays
    untouched.
