@@ -15,6 +15,23 @@ Keep a Changelog; versioning is SemVer.
   announcement links straight to the release page. GitHub payload
   fields are shape-checked before they ever touch innerHTML.
 
+## [1.3.3] - 2026-10-30
+
+### Fixed
+- **Clicking a chat could leave the conversation pane GRAY** (the user hit
+  it live: the click marked the chat read but the right side never
+  rendered). Root cause: the empty-state promo card hide painted
+  `display:none` on elements AND climbed collapsible ancestors - the
+  card sits high in the right pane's tree, and during WhatsApp's
+  intro->chat React transitions a sweep could catch a transient where
+  the pane held only already-hidden children, collapsing a container
+  the CONVERSATION view then mounts into. Born invisible. The hide is
+  now a selector RULE (`intro_panel_v2_title_card`, style tag - same
+  technique as the call styling): it dies with the card, climbs
+  nothing, paints nothing; while the card is unmounted it matches
+  nothing at all. Verified live: open-chat -> `#main` rendered,
+  composer visible, no gray.
+
 ## [1.3.2] - 2026-10-30
 
 ### Added

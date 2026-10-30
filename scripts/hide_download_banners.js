@@ -220,7 +220,6 @@
                 }
             }
             hideLandingPromoCard();
-            hideEmptyStateCard();
         } catch (_error) {
             // Never break the page because of cosmetics.
         }
@@ -272,23 +271,29 @@
         }
     }
 
-    /// The v2 empty-state promo card (real testid census 2026-10-31): the
-    /// whole "Descarga WhatsApp para Windows / Obtén funciones adicionales,
-    /// como llamadas… / [Descargar]" en bloc carries its own testid. The
-    /// generic sweep cannot collapse it (the bare "Descargar" button is not
-    /// a promo-phrase match, so the ancestor climb bails on it) - but the
-    /// testid is WhatsApp's semantic marker for exactly this card, so the
-    /// hide is precise by construction. The action-tile row below it
-    /// (Enviar documento / Añadir contacto / Pregúntale a Meta AI) is
-    /// functional and stays.
-    function hideEmptyStateCard() {
+    // The v2 empty-state promo card (real testid census 2026-10-31): the
+    // whole "Descarga WhatsApp para Windows / Obtén funciones adicionales,
+    // como llamadas… / [Descargar]" en bloc carries its own testid. HIDDEN
+    // VIA A SELECTOR RULE, never by painting an element: this card sits
+    // HIGH in the right pane's tree, next to containers the CONVERSATION
+    // view also mounts into. Painting an element + climbing ancestors used
+    // to collapse a shared container during WhatsApp's intro->chat React
+    // transitions (the user hit it: clicking a chat marked it read but the
+    // pane stayed gray - the conversation was born inside a display:none
+    // ancestor). A stylesheet rule dies with the card itself: while the
+    // card is unmounted the rule matches nothing, and the chat view is
+    // never touched. The functional action-tile row (Enviar documento /
+    // Añadir contacto / Pregúntale a Meta AI) is unleashed and stays.
+    function ensureIntroCardStyle() {
         try {
-            var cards = document.querySelectorAll(
-                '[data-testid="intro_panel_v2_title_card"]'
-            );
-            for (var i = 0; i < cards.length; i++) {
-                hide(cards[i]);
+            if (document.getElementById("zapdude-intro-card-style")) {
+                return;
             }
+            var style = document.createElement("style");
+            style.id = "zapdude-intro-card-style";
+            style.textContent =
+                '[data-testid="intro_panel_v2_title_card"]{display:none!important}';
+            document.head.appendChild(style);
         } catch (_error) {
             // Never break the page because of cosmetics.
         }
@@ -307,6 +312,10 @@
 
     function start() {
         sweep();
+        // The empty-state promo card dies by selector rule - no element
+        // painting, no ancestor climbing (see the function block above for
+        // the gray-pane lesson).
+        ensureIntroCardStyle();
         var observer = new MutationObserver(scheduleSweep);
         observer.observe(document.documentElement, { childList: true, subtree: true });
     }
