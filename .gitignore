@@ -4,3 +4,8 @@
 # Artefactos de empaquetado intermedios
 *.exe.stackdump
 Thumbs.db
+
+# runtime logs / temp
+zapdude-console*.log
+sse-out.tmp
+/zapdude-console*.log

@@ -43,6 +43,23 @@ const USER_AGENT_DESKTOP: &str =
 
 const WHATSAPP_URL: &str = "https://web.whatsapp.com";
 
+/// Facebook chat embedding. Messenger (the standalone chat surface) keeps
+/// the page anchored on the conversation UI only - never the full Facebook
+/// feed panel. Login happens INSIDE this view, exactly like WhatsApp's QR:
+/// email + password + 2FA, as the user would on facebook.com.
+const FACEBOOK_URL: &str = "https://www.messenger.com";
+
+/// The page each account's webview loads, by service. The page IS the
+/// integration: Zapdude never replaces the chat's own client, only drives
+/// it from injected page bridges (the "adapt to the page" contract).
+pub fn account_service_url(service: &str) -> &'static str {
+    if service == crate::config::SERVICE_FACEBOOK {
+        FACEBOOK_URL
+    } else {
+        WHATSAPP_URL
+    }
+}
+
 /// Renderer args. WARNING (empirical, WebView2 + wry 0.57): passing ANY
 /// `additional_browser_args` on child webviews combined with the Chrome
 /// user-agent breaks WebView2 composition - the page loads and JS runs but
@@ -54,9 +71,12 @@ const BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreen
 
 const CLIENT_HINTS_FIX_SCRIPT: &str = include_str!("../scripts/client_hints_fix.js");
 const API_PAGE_BRIDGE_SCRIPT: &str = include_str!("../scripts/api_page_bridge.js");
+const FACEBOOK_BRIDGE_SCRIPT: &str = include_str!("../scripts/facebook_bridge.js");
 const HIDE_DOWNLOAD_BANNERS_SCRIPT: &str = include_str!("../scripts/hide_download_banners.js");
 const CALL_ANCHOR_SCRIPT: &str = include_str!("../scripts/call_anchor.js");
+const CALL_STYLE_SCRIPT: &str = include_str!("../scripts/call_style.js");
 const NOTIFICATION_HOOK_SCRIPT: &str = include_str!("../scripts/notification_hook.js");
+const SW_GUARD_SCRIPT: &str = include_str!("../scripts/sw_guard.js");
 
 /// Logical width of the left rail. The content area gets the rest.
 pub const RAIL_WIDTH: f64 = 76.0;
@@ -94,6 +114,9 @@ pub fn toggle_drawer(app: &AppHandle) -> tauri::Result<()> {
     };
     if open {
         let content = content_size(&window)?;
+        // The click-open strip must not hover over the options drawer:
+        // opening the drawer dismisses it (fresh state on each side).
+        hide_picker(app);
         let base = ui_base_url();
         let url: url::Url = format!("{base}/drawer").parse().expect("drawer URL must parse");
         // Rebuild from scratch: a webview created before an account would
@@ -114,6 +137,124 @@ pub fn toggle_drawer(app: &AppHandle) -> tauri::Result<()> {
     relayout(&window);
     let _ = window.set_focus();
     Ok(())
+}
+
+/// The rail "+" hover menu: opens a horizontal service strip right of the
+/// rail (drawer-mechanics child webview). BORN at full content size (paint
+/// law) and immediately re-anchored to the strip slot beside the "+" tile
+/// by relayout; recreated per open so z-order always lands on top (drawer
+/// parity); destroyed on close. State + hover coordination:
+///   PICKER_OPEN           strip visible over the content slot?
+///   PICKER_TOUCH          last time the cursor touched the strip page
+///   show/toggle/hide      explicit endpoints (toggle from + click)
+///   touch                 the strip reports cursor presence (cancels the
+///                         soft-close the rail schedules when the cursor
+///                         leaves the + toward the strip)
+///   soft_close            rail cursor left the +: hide after a short
+///                         grace UNLESS the strip reports a touch first
+///                         (the cursor crossed the 4px gap into the menu).
+pub const SERVICE_PICKER_WINDOW: &str = "service-picker";
+
+static PICKER_OPEN: Mutex<bool> = Mutex::new(false);
+
+fn picker_open_now() -> bool {
+    PICKER_OPEN.lock().map(|guard| *guard).unwrap_or(false)
+}
+
+static PICKER_TOUCH: Mutex<Option<std::time::Instant>> = Mutex::new(None);
+
+/// Open (idempotent) the strip. Recreates the webview so it always lands
+/// ABOVE the account views, then lets relayout shrink it into the strip
+/// beside the "+" (born at FULL content size for the compositor).
+pub fn show_picker(app: &AppHandle) {
+    if picker_open_now() {
+        return;
+    }
+    let Some(window) = app.get_window("main") else {
+        return;
+    };
+    if let Ok(mut open) = PICKER_OPEN.lock() {
+        *open = true;
+    }
+    if let Some(existing) = app.get_webview(SERVICE_PICKER_WINDOW) {
+        let _ = existing.close();
+    }
+    if let Some(window) = app.get_window("main") {
+        if let Ok(content) = content_size(&window) {
+            let base = ui_base_url();
+            if let Ok(url) = format!("{base}/picker").parse::<url::Url>() {
+                let _ = window.add_child(
+                    WebviewBuilder::new(SERVICE_PICKER_WINDOW, WebviewUrl::External(url))
+                        .transparent(true),
+                    LogicalPosition::new(RAIL_WIDTH, 0.0_f64),
+                    LogicalSize::new(content.width, content.height),
+                );
+            }
+        }
+    }
+    if let Some(window) = app.get_window("main") {
+        relayout(&window);
+    }
+}
+
+/// Toggle for the + click: hover already opens, so click closes when open.
+pub fn toggle_picker(app: &AppHandle) {
+    if picker_open_now() {
+        hide_picker(app);
+    } else {
+        show_picker(app);
+    }
+}
+
+/// Close the strip (pick, strip mouseleave, Esc, outside click).
+pub fn hide_picker(app: &AppHandle) {
+    let was_open = picker_open_now();
+    if let Ok(mut open) = PICKER_OPEN.lock() {
+        *open = false;
+    }
+    if !was_open {
+        return;
+    }
+    if let Some(webview) = app.get_webview(SERVICE_PICKER_WINDOW) {
+        let _ = webview.close();
+    }
+    if let Some(window) = app.get_window("main") {
+        relayout(&window);
+    }
+}
+
+/// The strip page's cursor entered: cancel any pending soft-close.
+pub fn picker_touch() {
+    if let Ok(mut touch) = PICKER_TOUCH.lock() {
+        *touch = Some(std::time::Instant::now());
+    }
+}
+
+/// The rail's cursor left the +: schedule a soft close. With CLICK-open the
+/// cursor leaves the + the moment it moves anywhere else, so the grace is
+/// generous (1.2s) - the strip's touch pings cancel it when the cursor is
+/// heading into the menu, and picking a service closes it anyway.
+pub fn soft_close_picker(app: &AppHandle) {
+    if !picker_open_now() {
+        return;
+    }
+    let scheduled = std::time::Instant::now();
+    let handle = app.clone();
+    std::thread::Builder::new()
+        .name("zapdude-picker-softclose".into())
+        .spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(1200));
+            let touched_recently = PICKER_TOUCH
+                .lock()
+                .ok()
+                .and_then(|touch| *touch)
+                .map(|touch_at| touch_at > scheduled)
+                .unwrap_or(false);
+            if picker_open_now() && !touched_recently {
+                hide_picker(&handle);
+            }
+        })
+        .ok();
 }
 
 /// The label of the content webview currently shown (None = rail only).
@@ -159,28 +300,55 @@ fn startup_scripts() -> Vec<String> {
 /// The automation bridge and the cosmetic promo hider do not need to run
 /// before WhatsApp's own scripts, and deferring them keeps the
 /// document-start injection small enough that WebView2 keeps painting.
-pub fn deferred_scripts() -> Vec<(&'static str, &'static str)> {
+///
+/// Per service: WhatsApp keeps its historical set UNCHANGED (it must never
+/// regress); Facebook gets the SHARED notification capture plus its own
+/// adaptive page bridge under the same `__zapdudeApiV1` contract. The
+/// WhatsApp selectors and promos hider never run on Facebook pages - the
+/// other service's DOM means nothing to them, and anything we do not
+/// positively recognize must not touch the page.
+pub fn deferred_scripts(service: Option<&str>) -> Vec<(&'static str, &'static str)> {
     let opts = std::env::var("ZAPDUKE_WEBVIEW_OPTS").unwrap_or_else(|_| "all".to_string());
     let want = |name: &str| {
         !opts.contains("scripts1") && !opts.contains("scripts2") && !opts.contains("scripts3")
             || opts.contains(name)
     };
+    let is_facebook = service == Some(crate::config::SERVICE_FACEBOOK);
     let mut pairs = Vec::new();
     if want("scripts2") {
-        pairs.push(("__zapdudeApiV1", API_PAGE_BRIDGE_SCRIPT));
+        // SAME bridge name `__zapdudeApiV1` on every service: the host's
+        // bridge_expression guards stay service-agnostic, and an unknown op
+        // answers `unknown_operation` instead of breaking the endpoint.
+        pairs.push((
+            "__zapdudeApiV1",
+            if is_facebook {
+                FACEBOOK_BRIDGE_SCRIPT
+            } else {
+                API_PAGE_BRIDGE_SCRIPT
+            },
+        ));
     }
-    if want("scripts3") {
+    if !is_facebook && want("scripts3") {
         pairs.push(("__zapdudeHidePromos", HIDE_DOWNLOAD_BANNERS_SCRIPT));
+        // The service-worker guard (square toast fix - sw.js raises its
+        // own un-stylable OS notification from its realm) shares the
+        // WhatsApp-only group: the Messenger surface has no sw.js of
+        // this kind.
+        pairs.push(("__zapdudeSwGuardV1", SW_GUARD_SCRIPT));
     }
     // The notification capture installs once the bridge it leans on is
     // present (fallback beacon transport works even alone, but the bridge
     // keeps the two order-stable). own flag, own try/catch: a failure can
-    // never silence the other scripts (the banner-hider lesson).
+    // never silence the other scripts (the banner-hider lesson). SHARED by
+    // every service: it is generic page-level Notification capture, the
+    // one choke point through which the embedded chat surfaces announce
+    // incoming messages.
     if want("scripts2") {
         pairs.push(("__zapdudeNotifyV1", NOTIFICATION_HOOK_SCRIPT));
     }
-    if want("scripts3") {
+    if !is_facebook && want("scripts3") {
         pairs.push(("__zapdudeCallAnchor", CALL_ANCHOR_SCRIPT));
+        pairs.push(("__zapdudeCallStyleV1", CALL_STYLE_SCRIPT));
     }
     pairs
 }
@@ -326,7 +494,11 @@ fn account_webview_builder(account: &crate::config::AccountConfig) -> WebviewBui
         }
         opts == "all" || opts.split(',').any(|o| o.trim() == name)
     };
-    let url: url::Url = WHATSAPP_URL.parse().expect("WhatsApp URL constant must parse");
+    // The page IS the integration: each service loads its own real web
+    // chat (WhatsApp Web / Messenger), authenticated inside the view.
+    let url: url::Url = account_service_url(&account.service)
+        .parse()
+        .expect("service URL constant must parse");
     let mut builder = WebviewBuilder::new(account_webview_label(&account.id), WebviewUrl::External(url));
     if has("ua") {
         builder = builder.user_agent(USER_AGENT_DESKTOP);
@@ -404,6 +576,7 @@ fn relayout(window: &Window<Wry>) {
     };
     let active = ACTIVE.lock().ok().and_then(|guard| guard.clone());
     let drawer_open = DRAWER_OPEN.lock().map(|guard| *guard).unwrap_or(false);
+    let picker_open = picker_open_now();
     for webview in window.webviews() {
         let label = webview.label().to_string();
         let (position, size) = if label == "rail" {
@@ -418,6 +591,26 @@ fn relayout(window: &Window<Wry>) {
                 (
                     LogicalPosition::new(RAIL_WIDTH, 0.0_f64),
                     LogicalSize::new(content.width, content.height),
+                )
+            } else {
+                (
+                    LogicalPosition::new(PARKED_X, 0.0_f64),
+                    LogicalSize::new(content.width, content.height),
+                )
+            }
+        } else if label == SERVICE_PICKER_WINDOW {
+            if picker_open {
+                // The + click menu strip: a horizontal panel anchored
+                // immediately RIGHT of the rail, vertically aligned with
+                // the "+" tile. The + is PINNED near the rail's bottom with
+                // a 16px air gap (spans [H-76, H-32]); the 72px strip card
+                // tops at H-88 so its vertical centre sits on the tile's
+                // line. The webview was born FULL content size (paint
+                // law) - this branch shrinks it into the strip slot right
+                // after creation.
+                (
+                    LogicalPosition::new(RAIL_WIDTH + 6.0, (content.height - 88.0).max(0.0)),
+                    LogicalSize::new(178.0, 88.0),
                 )
             } else {
                 (
@@ -551,6 +744,7 @@ pub fn auto_open_all_accounts(app: &AppHandle) {
                 id: "account-1".to_string(),
                 label: "Account 1".to_string(),
                 enabled: true,
+                ..crate::config::AccountConfig::default()
             };
             accounts.push(account.clone());
             if let Err(err) = shared.settings.update_accounts(accounts) {

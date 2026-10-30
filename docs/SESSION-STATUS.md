@@ -1,16 +1,271 @@
 # Session status - Zapdude (Rust)
 
 > Continuity document for AI agents and future sessions. Last updated:
-> 2026-10-29 (working tree past v1.2.0, pre-release; features below need
-> a version bump once the user signs off).
+> 2026-10-30 SESSION CLOSE - v1.3.0 cut (see the closing block at the
+> end). The working tree carries what releases need; features below were
+> verified live where marked.
 
-> **STATE OF THE WORLD**: v1.2.1 is live at
-> https://github.com/ldpf96/zapdude/releases/tag/v1.2.1 with CI-built
-> artifacts (macOS .dmg aarch64 + x64 with macOS 13 minimum and the
-> privacy plist keys; Windows NSIS). v1.2.0 remains live for older
-> installs. Download site resolves the latest release automatically.
-> The release body documents the Ventura caveat and the 1.2.1 highlights. The app is named **Zapdude** ("dude" lowercase, first letter
-> capital). Repo text is ENGLISH; chat with the user is Spanish.
+> **STATE OF THE WORLD** (updated 2026-10-30 mid-session): v1.2.1 is the
+> last PUBLISHED release; the user's PC runs the OLD **v1.2.0** installer
+> edition (their "start-menu click does nothing / opens only in the tray"
+> symptoms: both fixed since 1.2.1 - second-launch `/api/ui/show` ping +
+> manual launches always show the window - and cured entirely by
+> installing the 1.3.0). The working tree is **v1.3.0** with the call
+> part-2 afternoon folded in (uniform toast law, sw-guard square-
+> notification fix, missed-call photo+name, startCall label drift,
+> invisible dev launcher); the NSIS 1.3.0 re-cut is running with ALL of
+> it (the 09:37 cut is stale, do not install from it). PUBLISH flow:
+> local folder is NOT a git repo yet - init + remote + commit + tag
+> first; gh is authed as ldpf96 (scope repo).
+
+> **SESSION CLOSE PROTOCOL (2026-10-30)**: the user comps each session;
+> keep this block as the entry ramp. Backups: several
+> `backups/stable-dev-<stamp>` snapshots exist (tools/backup-stable.ps1;
+> the newest 12 are kept). The dev launcher is `tools/run-dev.cmd`
+> (ZAPDUDE_DEBUG_EVAL=1, console to zapdude-console.log). The INSTALLED
+> app on the user's PC is still the OLD v1.2.0 unless they run the new
+> NSIS installer - any double-click of the OLD shortcut silently
+> resurrects the old binary (it rewrote config.json to its schema once,
+> wiping `service` fields), so v1.3.0 install replaces it.
+
+## Closing block - what v1.3.0 carries (all verified as noted)
+## What changed on 2026-10-30 (working epoch, knowledge for future sessions)
+
+- **Toast anatomy rebuilt (user feedback: "la foto sale abajo y gigante",
+  "dice account-1 en lugar del nombre").** Root cause: `notifier.rs` used
+  `Toast::image()` (tauri-winrt-notification) which ships the image with NO
+  placement attribute - Windows renders that as a full-width banner at the
+  BOTTOM of the toast. Also the layout was title "Zapdude" + `[account-1]`
+  id glued at the tail of the message. New anatomy:
+  `.icon(path, IconCrop::Circular, ...)` -> appLogoOverride round avatar at
+  the LEFT; contact name as the bold first line (the redundant "Zapdude"
+  title was dropped: the AUMID footer already attributes Zapdude); message
+  as line 2; account LABEL (renamed via the drawer, resolved through
+  `SHARED.settings.current_accounts()` by id) as line 3 only in
+  multi-account shells (<= 1 enabled account = no account line, no
+  click-through, the footer covers it).
+- **Toast click-through**: activation now opens the account that produced
+  the event (`open_account_webview`, same choreography as tray
+  "Show <account>": window first, webview on a worker thread; re-checks the
+  account still exists at click time so a deleted account is not
+  resurrected from the snapshot).
+- **Verified live** 2026-10-30: 14/14 unit tests green; debug build rebuilt
+  and the user's dev instance restarted with the fix; synthetic
+  `POST /api/_debug/emit` (kind "incoming", data.kind "notification",
+  account-1, data-URL icon) produced the toast on the user's screen and
+  decoded the icon to
+  `toast-icons/avatar-test_zapdude_toast.png` (533 B = the source icon).
+  Live-tested labels: config has account-1 -> "+51987931332" and
+  account-2 -> "Account 2" (2 enabled accounts = the line shows).
+- **CALL notifications go UNIFORM (user request: "hazla como las de
+  mensajes, que se ven muy bonitas").** The incoming-call prompt is
+  WhatsApp's own in-page surface, so the branded look now comes from the
+  unified pipeline instead: the call anchor script, when a call surface
+  mounts, emits the SAME `notification` payload the message notifications
+  use (title = caller identity best-effort: `@handle` match or short
+  line, body = "Incoming (voice|video) call", and the caller avatar
+  decoded from the surface `<img>` blob: URL -> fetch -> FileReader ->
+  data URL, which the notifier's icon cache consumes exactly like message
+  icons). Result: the SAME branded native toast (round avatar, bold
+  name) for incoming calls, usable even for parked/hidden accounts that
+  would otherwise ring invisibly. Guards: WeakSet identity dedupe (the
+  ongoing-call panel mutates constantly - no toast spam), active
+  (answered) surfaces are excluded from toasting, all best-effort. The
+  prompt itself stays functional; once the surface outerHTML capture
+  lands (next real call), the styling pass gives it the brand look
+  without touching the buttons. Build verified 16/16 + backup
+  `stable-dev-20261030-092102`.
+- **STABLE BACKUPS discipline (the user demanded it after the session's
+  rail outage).** NO git repo exists in this working folder, so the anchor
+  is: (a) `tools/backup-stable.ps1` - run AFTER a verified build; makes
+  `..\backups\stable-dev-<stamp>\` with zapdude.exe + .pdb + source.zip
+  (tar excludes target/ + logs) + a MANIFEST.txt of what passed, prunes to
+  the newest 12; (b) GitHub release artifacts (CI-built) for real
+  releases. Snapshots so far: `stable-dev-20261030-083233` (rail recovery
+  + facebook phase 1), `stable-dev-20261030-085537` (+ pinned strip,
+  click-open, promo v2 patterns, call-surface HTML capture). HONEST
+  NOTE: earlier snapshots of pre-today states were NOT taken on disk -
+  the exe changes in place with every build; recoverable prior-stable
+  source lives in the v1.2.1 RELEASE (GitHub) + the backups from now on.
+- **Session refinement batch (user screenshot feedback, 2026-10-30 late
+  morning).** Four items:
+  1. Desktop-banner promo leaked on account-2: the hider's Spanish
+     patterns covered "descarga la aplicaci[on]" but the umbrella flag
+     text was likely the SHORT "descarga la app" - patterns extended
+     (descarga/obten/instala + "la app", "download our app", "get our
+     app", "WhatsApp Desktop"/"para escritorio", "con whatsapp en tu
+     computad[ora]"). The smallest-match rule + collapse climb + protected
+     zones stay the safety rails. The bottom banner's X button is an
+     svg-only child (promo-ish) so the climb can collapse the bar.
+  2. Call notifications look "cuadradas y toscas": the incoming-call
+     prompt (ACCEPT/DECLINE) is WHATSAPP's OWN in-page surface (it never
+     flows through the Notification API, so the branded native toast
+     cannot carry it; missed calls DO). No styling by guess work - the
+     call_anchor script now captures the surface outerHTML (6KB cap)
+     through the bridge, so the NEXT real call provides the exact classes
+     and testids for a brand-styling pass (phase 2 pending that data).
+  3. The strip menu sat misaligned vs the + (drawered screenshot): the +
+     tile was INSIDE the scroll area, so with few accounts it drifted up
+     right after the avatars while the strip anchored to the client
+     bottom. FIXED: .add-wrap moved OUT of .rail-scroll as a body-level
+     sibling - the + is PINNED to the rail bottom edge always; the strip
+     slot geometry (RAIL_WIDTH+6, H-74, 178x74) now hugs it exactly.
+  4. The strip now opens by CLICK (+ click -> /toggle), per the user's
+     preference; the hover opener was removed entirely. Soft-close grace
+     on leaving the + grew to 1200ms (touch pings cancel it - the
+     4px gap crossing). The strip ALSO got a self-kill fix: close-on-
+     leave now ARMS only after a real mouseenter (the birth-shrink
+     synthesized leaves raced the fixed 700ms guard and some mounts
+     self-closed the menu before it was used). toggle_drawer now
+     dismisses the strip so the options page never has it floating.
+- **RAIL SCRIPT CRASH root cause (the user's "accounts disappeared + hover
+  gone" report, 2026-10-30).** During the hover-menu wiring, the rail's
+  `addWrap` got USED without a declaration AND a duplicate
+  `const hoverTimer` sat in the same scope - one ReferenceError under
+  `use strict` killed the ENTIRE rail page script at boot: no poll loop,
+  no account avatars, no dots, no hover bindings, drawer still worked
+  (host-side). LESSON recorded as a hard rule: whenever editing the shell
+  pages, `new Function`-style check or at minimum a string sanity pass on
+  the served page (index of every referenced identifier) BEFORE shipping;
+  the crash shipped because the rail pages have no automated test today.
+  Fixed: addWrap declared, duplicate const removed. Verified live: both
+  WhatsApp accounts render, dots stable green.
+- **Toast click-through now opens THE CHAT, not just the account (user
+  report #3: "te lleva a la cuenta, el chat desaparece, gris").** That
+  grey pane was WhatsApp's own "no chat selected" placeholder: the old
+  click-through switched accounts but never fired the page-side click.
+  NEW: after `open_account_webview`, the host fires the notification's
+  OWN click handlers on that account page
+  (`window.__zapdudeFireNotificationClick(tag)` - the hook stores every
+  instance's onclick; empty tag fires empty-tag instances). The call is
+  an async retry loop (6 x 300ms) through the page bridge, tolerating
+  bridge mounting beats. Hook presence verified live via debug eval:
+  `typeof window.__zapdudeFireNotificationClick` -> "function" on
+  account-1. A real user toast click is the remaining live proof.
+- **Service picker FINAL shape: in-rail HOVER opening a horizontal strip
+  (2026-10-30 late).** The user loved the hover menu but wanted it
+  extending to the RIGHT ("lo hiciste para arriba en lugar de hacia la
+  derecha"). An on-screen CLIP MARKER test proved the rail webview
+  CLIPS at its 76px viewport, so an in-rail horizontal menu is
+  impossible. FINAL ARCHITECTURE (all verified live):
+  - rail.html keeps only the HOVER trigger: + mouseenter (130ms) ->
+    POST /api/ui/picker/show; wrapper mouseleave -> POST
+    /api/ui/picker/soft-close; + click -> /toggle; document outside
+    click + Esc -> /hide.
+  - window.rs: `SERVICE_PICKER_WINDOW` child webview ("service-picker").
+    show = DESTROY any existing + add_child born at FULL content size
+    (paint law) + relayout immediately shrinks it to the strip slot
+    (RAIL_WIDTH+6, content.height-78, 178x78) - the born-full-then-
+    shrink path PAINTS correctly (captured), the born-tiny path does
+    not. hide = close webview (drawer-style recreate per open keeps
+    z-order on top of accounts).
+  - ui/picker_strip.html: transparent body + rounded dark card with the
+    two brand items horizontal. ALPHAWORKS on child webviews (chat
+    visible outside the card) although the top-level alpha sheet failed
+    earlier. Self-dismissal: mouseleave (guarded against the synthetic
+    leave caused by the birth-to-slot shrink - ignore first 700ms), Esc,
+    pick. Cursor presence pings /api/ui/picker/touch so the rail's
+    soft-close (420ms grace) does not kill the menu while the cursor
+    crosses the 4px gap + -> strip.
+  - Endpoints: /api/ui/picker/show|hide|toggle|touch|soft-close (the old
+    /api/ui/service-picker* names stay gone).
+- **Rail dot semantics fixed (rotating-colors bug).** Root cause:
+  SESSION_STATE_TTL (2.5s) EXACTLY matched the rail poll cadence, so the
+  cached state expired between every poll and list_accounts answered
+  "detecting" while the refresh ran - the dot cycled green/grey forever
+  (the user's exact report). Fixed with stale-while-revalidate:
+  session_state_entry() serves the stale honest value up to a 30s hard
+  cap while the refresh runs in the background; the rail keeps the last
+  color until the truth changes. New honest vocabulary the user
+  specified: green = connected (logged_in), yellow = needs the human
+  (scan_qr OR needs_login), red = real page problem (NEW state
+  `page_error`, set by spawn_session_state_refresh when a page evaluation
+  fails for any reason other than "bridge not installed yet" - that one
+  stays detecting = grey). Rail maps page_error to a red dot + a
+  "connection problem" tooltip.
+- **Real service logos + ATTRIBUTIONS (user request).** Rail account
+  tiles show the REAL service glyphs with brand colors: WhatsApp green
+  (#25d366) and Messenger blue (#00b2ff) - both paths from simple-icons
+  v13 (CC0/public domain), the same source Franz/Ferdium-class apps use;
+  nominative identification of the embedded service. The Zapdude bolt
+  remains ONLY on the brand logo top-of-rail. The welcome buttons and
+  the hover-menu items use the same two logos. **NOTICE.md now carries
+  the full attributions** (simple-icons CC0, embedded web services'
+  ownership, trademark not-affiliation wording, runtime dependencies
+  pointer) per the user's request to attribute everything borrowed.
+- **Messenger QR login = NOT POSSIBLE (answered to the user).** Facebook
+  has no cross-device QR pairing for the web chat (that is a WhatsApp
+  linked-device exclusive). The equivalent smoothness here is the
+  per-account persistent WebView2 profile: sign in once (email + password
+  + 2FA) and the session survives restarts like a normal browser;
+  session_state needs_login only appears when the profile is logged out.
+- **Multi-platform chat hub: FACEBOOK PHASE 1 SHIPPED (2026-10-30).** The
+  user's doctrine: NO third-party APIs - Zapdude embeds the REAL web chat
+  and offers only its own local API on top ("nuestra app interactúa
+  mediante la página web"; the API must NEVER break). Implemented:
+  - `AccountConfig.service` ("whatsapp" legacy default, "facebook";
+    whitelist + WhatsApp fallback so legacy/typo configs can never wedge).
+  - `window.rs`: per-service URL (whatsapp -> web.whatsapp.com, facebook
+    -> messenger.com, the standalone chat surface so the embedded view
+    stays anchored to the chat, never the full Facebook feed. Login
+    happens INSIDE the view: email + password + 2FA exactly like the user
+    does on Facebook). Deferred scripts are per service: WhatsApp keeps
+    its historic set UNTOUCHED (bridge + promos + call anchor +
+    notification hook); Facebook gets ONLY the shared notification hook +
+    the new adaptive `scripts/facebook_bridge.js`.
+  - `facebook_bridge.js` contract: SAME `window.__zapdudeApiV1` name (the
+    host's `bridge_expression` guards stay service-agnostic); every op
+    try/catches into structured results, selector strategies are
+    candidate LISTS (original + fallbacks), honest `degraded` fields
+    instead of fake reads. Ops: pageInfo (incl. `login_form`),
+    composerInfo, chatList (NOTE: op name must MATCH the WhatsApp bridge's
+    - the first cut used `chats` and the host read "bridge not present";
+    renamed and verified), sendCurrent (generic composer write, host
+    still gates sends), titleBadge + a 2 s document.title unread watcher
+    that ships `title_badge` events ONLY on change (observability, NOT
+    toasts).
+  - host (`server.rs`): `POST /api/accounts` optional body
+    `{service:"facebook"}` (legacy no-body callers unchanged); `service`
+    returned by /api/accounts AND /api/status; facebook session states:
+    logged_in / needs_login (login form detected) / detecting;
+    receive-side endpoints (status, chats, events) are service-agnostic;
+    WhatsApp-only ops (message, open-chat, call, call/end) answer HTTP
+    400 `unsupported_for_service` for other services - explicit "not
+    supported yet" beats silent misfires. Events and chat_opened payloads
+    carry additive `service` (old consumers keep working).
+  - UI: rail "+" no longer silently creates a WhatsApp account - a mini
+    picker WINDOW (`ui/service_picker.html` at /picker, new endpoints
+    /api/ui/service-picker + /hide, always-on-top borderless ~250x178,
+    anchored above the rail's + tile, hides on blur/Esc/main-window
+    focus) asks WhatsApp OR Facebook. The welcome screen grew the same
+    two brand buttons. Rail avatars show the service glyph (bolt /
+    Facebook f) and the tooltip names the service; accounts list rows in
+    the drawer show a service chip. `needs_login` maps to the amber dot
+    ("waiting for sign in").
+  - **Verified live 2026-10-30**: 16/16 tests; dev build running; the
+    picker toggled through the API; a facebook account was created
+    (account-3) and the REAL messenger page loaded - status reports
+    service=facebook, title=Messenger, login_form_visible=true ->
+    session_state needs_login; /api/chats on it answers
+    ok:true/degraded:true (no threads while logged out - honest); /api/
+    message on account-3 answered the structured unsupported_for_service
+    error; both legacy WhatsApp accounts still logged_in (nothing
+    regressed); a synthetic notification showed the cleaned toast
+    WITHOUT the account line.
+- **Toast anatomy closure (user feedback: the account line read as if
+  the number belonged to the CONTACT)**: the account label is fully OUT
+  of the toast text now (contact + message + round avatar only);
+  WinRT's attribution row cannot be rebranded per toast (AUMID display
+  name), so the account story lives in the click-through: activation
+  opens the exact account that produced it (multi-account shells).
+- **Pending user actions**: sign into Facebook inside the embedded
+  messenger view (email + password + 2FA) to exercise the live scan:
+  thread-row selectors, unread heuristics and the notification capture
+  need one real login + real incoming messages before SEND for Facebook
+  graduates from gated (`unsupported_for_service`) to supported. Verify
+  the toast click-through opens the right account when os notifications
+  fire for account-2.
+
 
 ## What changed in v1.2.1 (working epoch, knowledge for future sessions)
 
@@ -257,7 +512,36 @@
 - The v1.2.1 tag push DID fire the release workflow (the tag-delete +
   re-tag cycle also works cleanly).
 
-## Pending (next candidates, user decides)
+## Pending (the NEXT session opens on these)
+
+1. PUBLISH v1.3.0 (user approved the flow): the local folder is NOT a git
+   repo yet - `git init` + `remote add origin
+   https://github.com/ldpf96/zapdude.git`, commit (English message),
+   tag `v1.3.0`, push → CI builds macOS dmg + Windows NSIS; PATCH the
+   release body with `docs/release-notes-1.3.0.md` (PS 5.1
+   `[System.IO.File]::ReadAllText` + UTF8-bytes pattern for the body).
+   THEN install the fresh NSIS on the user's PC (quit the running dev
+   instance first; the install also cures the v1.2.0 start-menu dead
+   clicks). The stale 09:37 NSIS bundle must NOT ship.
+2. AUTO-UPDATER (user request, "chicharron"): a Check-for-updates button
+   inside the app querying the GitHub releases endpoint (lightweight:
+   compare versions, notify, open the release page); deeper tier:
+   tauri-plugin-updater with release signing keys for true one-click
+   self-updates. Next session scope.
+3. Square-toast final confirmation: the sw_guard is bus-verified
+   (`sw_guard` events, 2 registrations killed) but the square never
+   reproduced under automated cycles - ONE real incoming call from the
+   user is the closing test (also confirms the ring sound still plays
+   without the worker).
+4. Facebook phase 2: only meaningful once a Facebook account exists -
+   the user clarified they never added one intentionally (the earlier
+   account-3 was a dev-test fixture and left the config). Re-add via the
+   "+" strip when wanted; phase-1 contract stays untouched.
+5. Backlog (carried): Linux ubuntu matrix row in release.yml, macOS
+   toast path (NSUserNotification), own-number endpoint.
+
+## Old pending (from the 1.2.1 era)
+
 
 1. Install v1.2.1 on the user's Windows PC FIRST (replace the v1.2.0
    install; remember the single instance mutex). Everything verified

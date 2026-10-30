@@ -68,8 +68,10 @@ pub fn install(
     {
         return existing;
     }
+    let service = service_for_account(account_id);
     let bridge = Arc::new(PageBridge {
         account_id: account_id.to_string(),
+        service,
         window,
         bus,
         page_lock: AsyncMutex::new(()),
@@ -90,7 +92,13 @@ pub fn install(
             // see `startup_scripts`). Each script is guarded by its OWN
             // flag and try/catch so one failure can never silence the
             // other (that is exactly how the banner hider got lost).
-            let install_expressions: Vec<String> = crate::window::deferred_scripts()
+            // The set is per SERVICE: WhatsApp keeps its historic bridge
+            // untouched; Facebook gets its own adaptive bridge, flagged
+            // under the same name so the host's expression guards stay
+            // service-agnostic.
+            let install_expressions: Vec<String> = crate::window::deferred_scripts(Some(
+                &poller.service,
+            ))
                 .into_iter()
                 .map(|(flag, script)| {
                     format!(
@@ -150,6 +158,16 @@ pub fn remove(account_id: &str) {
     }
 }
 
+/// Resolve an account's service defensively at bridge-install time
+/// (unknown id / closed registry / missing settings -> legacy WhatsApp).
+fn service_for_account(account_id: &str) -> String {
+    crate::SHARED
+        .get()
+        .and_then(|shared| shared.settings.account(account_id))
+        .map(|account| account.service)
+        .unwrap_or_else(|| crate::config::SERVICE_WHATSAPP.to_string())
+}
+
 fn percent_decode(raw: &str) -> String {
     let input = raw.as_bytes();
     let mut out = Vec::with_capacity(input.len());
@@ -182,6 +200,10 @@ fn js_number(value: u32) -> String {
 
 pub struct PageBridge {
     pub account_id: String,
+    /// Which chat web this account embeds ("whatsapp" legacy default);
+    /// decided at page-ops install time and mirrored into every event +
+    /// status payload so API consumers never have to guess.
+    pub service: String,
     window: Webview<Wry>,
     bus: Arc<super::events::ApiEventBus>,
     /// Serialize mutation flows: URL navigation plus composer interactions
@@ -228,14 +250,20 @@ impl PageBridge {
         let id = envelope.get("id").and_then(Value::as_str).unwrap_or("");
         let payload = envelope.get("payload").cloned().unwrap_or(json!(null));
         if id.starts_with("evt_") {
-            // Tag every incoming event with the originating account.
+            // Tag every incoming event with the originating account AND its
+            // service (additive fields: existing consumers keep working).
             let enriched = match payload {
                 Value::Object(map) => {
                     let mut map = map;
                     map.insert("account".to_string(), json!(self.account_id));
+                    map.insert("service".to_string(), json!(self.service));
                     Value::Object(map)
                 }
-                other => json!({ "account": self.account_id, "data": other }),
+                other => json!({
+                    "account": self.account_id,
+                    "service": self.service,
+                    "data": other,
+                }),
             };
             self.bus.emit("incoming", enriched);
         }
@@ -415,6 +443,7 @@ impl PageBridge {
         self.drawer_open_chat(&digits).await?;
         let mut detail = json!({
             "account": self.account_id,
+            "service": self.service,
             "phone": digits,
             "opened": true,
             "url": self.window_url_for_status(),
@@ -458,11 +487,17 @@ impl PageBridge {
         let info = self.evaluate(self.bridge_expression("pageInfo", "")).await?;
         Ok(json!({
             "account": self.account_id,
+            "service": self.service,
             "url": self.window_url_for_status(),
             "title": info.get("title").cloned().unwrap_or(json!("")),
             "chat_list": info.get("chat_list").cloned().unwrap_or(json!(false)),
             "composer_visible": info.get("composer").cloned().unwrap_or(json!(false)),
             "qrcode_visible": info.get("qrcode").cloned().unwrap_or(json!(false)),
+            // Facebook-only signal (login form) - additive for agents.
+            "login_form_visible": info
+                .get("login_form")
+                .cloned()
+                .unwrap_or(json!(false)),
             // Page-reported location (location.href): reveals redirects or
             // WebView2 error pages that the nav URL alone hides.
             "page_url": info.get("url").cloned().unwrap_or(json!(null)),

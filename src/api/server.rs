@@ -51,6 +51,7 @@ use crate::config::{self, AccountConfig, SettingsState};
 const RAIL_HTML: &str = include_str!("../../ui/rail.html");
 const WELCOME_HTML: &str = include_str!("../../ui/welcome.html");
 const DRAWER_HTML: &str = include_str!("../../ui/drawer.html");
+const PICKER_STRIP_HTML: &str = include_str!("../../ui/picker_strip.html");
 
 /// Holder guarded by a Mutex so the server can be stopped and restarted
 /// (port changes) without losing the slot.
@@ -261,6 +262,12 @@ fn router(state: ApiState) -> Router {
         .route("/", get(serve_rail))
         .route("/welcome", get(serve_welcome))
         .route("/drawer", get(serve_drawer))
+        .route("/picker", get(serve_picker))
+        .route("/api/ui/picker/show", post(ui_picker_show))
+        .route("/api/ui/picker/hide", post(ui_picker_hide))
+        .route("/api/ui/picker/toggle", post(ui_picker_toggle))
+        .route("/api/ui/picker/touch", post(ui_picker_touch))
+        .route("/api/ui/picker/soft-close", post(ui_picker_soft_close))
         .route("/api/ui/quit", post(ui_quit))
         .route("/api/ui/drawer", post(ui_toggle_drawer))
         .route("/api/ui/show", post(ui_show))
@@ -361,6 +368,57 @@ async fn serve_drawer() -> impl IntoResponse {
     axum::response::Html(DRAWER_HTML)
 }
 
+/// The "+" hover-menu strip page (a child webview re-anchored by the host
+/// beside the rail; see window.rs for the open/close choreography).
+async fn serve_picker() -> impl IntoResponse {
+    axum::response::Html(PICKER_STRIP_HTML)
+}
+
+/// Rail "+" interactions. /show opens (idempotent), /hide closes,
+/// /toggle flips (the + click), /touch reports the cursor entering the
+/// strip (cancels the rail's soft-close), /soft-close schedules the
+/// close the rail asks for when the cursor leaves the +.
+async fn ui_picker_show() -> (StatusCode, Json<Value>) {
+    if let Some(app_handle) = crate::APP_HANDLE.get() {
+        crate::window::show_picker(app_handle);
+        json_ok(json!({ "ok": true }))
+    } else {
+        json_error(&ApiError::internal("app handle not available"))
+    }
+}
+
+async fn ui_picker_hide() -> (StatusCode, Json<Value>) {
+    if let Some(app_handle) = crate::APP_HANDLE.get() {
+        crate::window::hide_picker(app_handle);
+        json_ok(json!({ "ok": true }))
+    } else {
+        json_error(&ApiError::internal("app handle not available"))
+    }
+}
+
+async fn ui_picker_toggle() -> (StatusCode, Json<Value>) {
+    if let Some(app_handle) = crate::APP_HANDLE.get() {
+        crate::window::toggle_picker(app_handle);
+        json_ok(json!({ "ok": true }))
+    } else {
+        json_error(&ApiError::internal("app handle not available"))
+    }
+}
+
+async fn ui_picker_touch() -> (StatusCode, Json<Value>) {
+    crate::window::picker_touch();
+    json_ok(json!({ "ok": true }))
+}
+
+async fn ui_picker_soft_close() -> (StatusCode, Json<Value>) {
+    if let Some(app_handle) = crate::APP_HANDLE.get() {
+        crate::window::soft_close_picker(app_handle);
+        json_ok(json!({ "ok": true }))
+    } else {
+        json_error(&ApiError::internal("app handle not available"))
+    }
+}
+
 /// Toggle the options drawer (brand-logo click in the rail).
 async fn ui_toggle_drawer() -> (StatusCode, Json<Value>) {
     if let Some(app_handle) = crate::APP_HANDLE.get() {
@@ -373,8 +431,9 @@ async fn ui_toggle_drawer() -> (StatusCode, Json<Value>) {
     }
 }
 
-/// Session state derived from a page snapshot (three honest states).
-fn three_state(snapshot: &Value) -> String {
+/// Session state derived from a page snapshot (three honest states for
+/// WhatsApp, plus the login wait for Facebook accounts).
+fn three_state(snapshot: &Value, service: &str) -> String {
     let composer = snapshot
         .get("composer_visible")
         .and_then(Value::as_bool)
@@ -389,6 +448,17 @@ fn three_state(snapshot: &Value) -> String {
         .unwrap_or(false);
     if composer || chat_list {
         "logged_in".to_string()
+    } else if service == crate::config::SERVICE_FACEBOOK {
+        // Facebook has no QR stage: the login screen (email + password +
+        // 2FA) means "waiting for the user to sign in". The legacy
+        // vocabulary stays additive for agents.
+        match snapshot
+            .get("login_form_visible")
+            .and_then(Value::as_bool)
+        {
+            Some(true) => "needs_login".to_string(),
+            _ => "detecting".to_string(),
+        }
     } else if qrcode {
         "scan_qr".to_string()
     } else {
@@ -590,30 +660,60 @@ fn session_state_cache() -> &'static Mutex<HashMap<String, (String, std::time::I
 }
 
 const SESSION_STATE_TTL: std::time::Duration = std::time::Duration::from_millis(2500);
+/// Hard cap for serving a STALE state: after this age the value is treated
+/// as unknown (grey dot) even while a refresh is in flight.
+const SESSION_STATE_MAX: std::time::Duration = std::time::Duration::from_millis(30_000);
 
-fn cached_session_state(account_id: &str) -> Option<String> {
-    session_state_cache()
-        .lock()
-        .ok()?
-        .get(account_id)
-        .filter(|(_, fetched)| fetched.elapsed() < SESSION_STATE_TTL)
-        .map(|(state, _)| state.clone())
+/// Returns (served state, needs background refresh). STALE states keep
+/// serving their last value while the refresh runs - the rail dot used to
+/// rotate green/grey because a fresh positive state flipped to "detecting"
+/// the moment the 2.5s TTL expired (the rail polls every 2.5s, so the flap
+/// was on EVERY poll). Stale-while-revalidate keeps the honest value shown
+/// and updates it silently.
+fn session_state_entry(account_id: &str) -> (Option<String>, bool) {
+    match session_state_cache().lock() {
+        Ok(map) => match map.get(account_id) {
+            Some((state, fetched)) => {
+                let age = fetched.elapsed();
+                if age < SESSION_STATE_TTL {
+                    (Some(state.clone()), false)
+                } else if age < SESSION_STATE_MAX {
+                    (Some(state.clone()), true)
+                } else {
+                    (None, true)
+                }
+            }
+            None => (None, true),
+        },
+        Err(_) => (None, true),
+    }
 }
 
 fn spawn_session_state_refresh(account_id: String) {
     tokio::spawn(async move {
-        let state = if let Some(bridge) = page_for(Some(&account_id)) {
-            tokio::time::timeout(
+        let service = crate::SHARED
+            .get()
+            .and_then(|shared| shared.settings.account(&account_id))
+            .map(|account| account.service)
+            .unwrap_or_else(|| crate::config::SERVICE_WHATSAPP.to_string());
+        let state = match page_for(Some(&account_id)) {
+            None => "detecting".to_string(),
+            Some(bridge) => match tokio::time::timeout(
                 std::time::Duration::from_millis(1200),
                 bridge.status_snapshot(),
             )
             .await
-            .ok()
-            .and_then(|result| result.ok())
-            .map(|snapshot| three_state(&snapshot))
-            .unwrap_or_else(|| "detecting".to_string())
-        } else {
-            "detecting".to_string()
+            {
+                // A slow page is NOT an error: keep re-detecting quietly.
+                Err(_timeout) => "detecting".to_string(),
+                Ok(Ok(snapshot)) => three_state(&snapshot, &service),
+                // Bridge not installed yet = still loading (not broken).
+                Ok(Err(err)) if err.code == "page_unavailable" => {
+                    "detecting".to_string()
+                }
+                // Any other evaluation failure = a real problem (red dot).
+                Ok(Err(_failure)) => "page_error".to_string(),
+            },
         };
         if let Ok(mut cache) = session_state_cache().lock() {
             cache.insert(account_id, (state, std::time::Instant::now()));
@@ -627,22 +727,27 @@ async fn list_accounts() -> (StatusCode, Json<Value>) {
     };
     let active = crate::window::active_content();
     let accounts = state_settings.current_accounts();
-    // Background refresh for anything stale - the response NEVER waits.
+    // Background refresh for STALE entries - the response NEVER waits for a
+    // page snapshot, and a stale honest value keeps serving while it runs
+    // (stale-while-revalidate; the rail dot stopped flapping here).
     for account in &accounts {
-        if cached_session_state(&account.id).is_none() {
+        let (cached, stale) = session_state_entry(&account.id);
+        if stale {
             spawn_session_state_refresh(account.id.clone());
         }
     }
     let account_entries: Vec<Value> = accounts
         .iter()
         .map(|account| {
+            let (cached, _) = session_state_entry(&account.id);
             json!({
                 "id": account.id,
                 "label": account.label,
                 "enabled": account.enabled,
+                "service": account.service,
                 "active": active.as_deref()
                     == Some(crate::window::account_webview_label(&account.id).as_str()),
-                "session_state": cached_session_state(&account.id)
+                "session_state": cached
                     .unwrap_or_else(|| "detecting".to_string()),
             })
         })
@@ -650,10 +755,28 @@ async fn list_accounts() -> (StatusCode, Json<Value>) {
     json_ok(json!({ "accounts": account_entries }))
 }
 
-/// Create an account the easy way: no body required, ids are generated
-/// (`account-N`, label `Account N`). The new account's WhatsApp Web opens
-/// right away so the QR is immediately on screen.
-async fn add_account_http(State(state): State<ApiState>) -> (StatusCode, Json<Value>) {
+/// Create an account the easy way: optional body, ids are generated
+/// (`account-N`, label `Account N`) and the `service` selects which web
+/// chat gets embedded (WhatsApp default - the legacy no-body callers keep
+/// their exact behavior). The new account's chat web opens right away so
+/// the login surface (QR / Facebook sign-in) is immediately on screen.
+#[derive(Deserialize, Default)]
+#[serde(default, rename_all = "camelCase")]
+struct CreateAccountBody {
+    service: Option<String>,
+}
+
+async fn add_account_http(
+    State(state): State<ApiState>,
+    body: Option<Json<CreateAccountBody>>,
+) -> (StatusCode, Json<Value>) {
+    let requested = body
+        .as_ref()
+        .and_then(|json| json.0.service.as_deref())
+        .unwrap_or("");
+    // Sanitize (whitelist + WhatsApp fallback): a bad or missing name can
+    // never create a broken account.
+    let service = crate::config::sanitize_service(requested);
     let mut accounts = state.settings.current_accounts();
     let mut n = accounts.len() + 1;
     let mut id = format!("account-{n}");
@@ -666,6 +789,7 @@ async fn add_account_http(State(state): State<ApiState>) -> (StatusCode, Json<Va
         id: id.clone(),
         label: label.clone(),
         enabled: true,
+        service,
     };
     accounts.push(account.clone());
     if let Err(err) = state.settings.update_accounts(accounts) {
@@ -759,6 +883,11 @@ async fn status(
         Err(err) => return json_error(&err),
     };
     let app_settings = state.settings.current();
+    let service = state
+        .settings
+        .account(account_id.as_str())
+        .map(|account| account.service)
+        .unwrap_or_else(|| crate::config::SERVICE_WHATSAPP.to_string());
     let account_entries: Vec<Value> = state
         .settings
         .current_accounts()
@@ -768,6 +897,7 @@ async fn status(
                 "id": account.id,
                 "label": account.label,
                 "enabled": account.enabled,
+                "service": account.service,
                 "window_present": page_for(Some(&account.id)).is_some(),
             })
         })
@@ -790,25 +920,7 @@ async fn status(
                 // Three-state heuristic: the page cannot prove a session just
                 // because no QR is rendered yet (slow first load). Agents
                 // should retry while "detecting".
-                let composer = snapshot
-                    .get("composer_visible")
-                    .and_then(Value::as_bool)
-                    .unwrap_or(false);
-                let chat_list = snapshot
-                    .get("chat_list")
-                    .and_then(Value::as_bool)
-                    .unwrap_or(false);
-                let qrcode = snapshot
-                    .get("qrcode_visible")
-                    .and_then(Value::as_bool)
-                    .unwrap_or(false);
-                let state = if composer || chat_list {
-                    "logged_in"
-                } else if qrcode {
-                    "scan_qr"
-                } else {
-                    "detecting"
-                };
+                let state = three_state(&snapshot, &service);
                 body["page"] = snapshot;
                 body["session_state"] = json!(state);
             }
@@ -816,6 +928,33 @@ async fn status(
         }
     }
     (StatusCode::OK, Json(body))
+}
+
+/// WhatsApp-only ops gate (chat opening, sending, calls). Phase 1 for the
+/// other services is RECEIVE-side: their ops have no proven selectors yet,
+/// so the endpoint answers a structured "unsupported" conclusion instead of
+/// driving the wrong bridge (the local API must never break - explicit "not
+/// supported yet" beats silent misfires or random timeout errors).
+fn require_whatsapp_service(
+    state: &ApiState,
+    account_id: &str,
+    operation: &str,
+) -> Result<(), ApiError> {
+    let service = state
+        .settings
+        .account(account_id)
+        .map(|account| account.service)
+        .unwrap_or_else(|| crate::config::SERVICE_WHATSAPP.to_string());
+    if service == crate::config::SERVICE_WHATSAPP {
+        return Ok(());
+    }
+    Err(ApiError {
+        status: 400,
+        code: "unsupported_for_service",
+        message: format!(
+            "operation '{operation}' is WhatsApp-only; account '{account_id}' runs service '{service}' (receive-side only in API v1)"
+        ),
+    })
 }
 
 async fn open_chat(
@@ -838,6 +977,9 @@ async fn open_chat(
         Ok(id) => id,
         Err(err) => return json_error(&err),
     };
+    if let Err(err) = require_whatsapp_service(&state, account_id.as_str(), "open-chat") {
+        return json_error(&err);
+    }
     let Some(bridge) = page_for(Some(account_id.as_str())) else {
         return json_error(&ApiError::unavailable("account window is not ready"));
     };
@@ -867,6 +1009,9 @@ async fn message(
         Ok(id) => id,
         Err(err) => return json_error(&err),
     };
+    if let Err(err) = require_whatsapp_service(&state, account_id.as_str(), "message") {
+        return json_error(&err);
+    }
     let Some(bridge) = page_for(Some(account_id.as_str())) else {
         return json_error(&ApiError::unavailable("account window is not ready"));
     };
@@ -933,6 +1078,9 @@ async fn call_start(
         Ok(id) => id,
         Err(err) => return json_error(&err),
     };
+    if let Err(err) = require_whatsapp_service(&state, account_id.as_str(), "call") {
+        return json_error(&err);
+    }
     // The webview is lazy; a parked/unopened account gets opened first. The
     // open flow is fast (view shell); the page itself keeps loading and
     // open_chat below waits for the composer/bridge within its own budget.
@@ -1001,6 +1149,9 @@ async fn call_end(
         Ok(id) => id,
         Err(err) => return json_error(&err),
     };
+    if let Err(err) = require_whatsapp_service(&state, account_id.as_str(), "call/end") {
+        return json_error(&err);
+    }
     let Some(bridge) = page_for(Some(account_id.as_str())) else {
         return json_error(&ApiError::unavailable("account window is not ready"));
     };

@@ -4,18 +4,18 @@
  * Replaces the page-level Notification API with a stub that forwards every
  * notification to the host through the beacon transport and never asks
  * WebView2 to render its web-styled bubble (the look the user called out:
- * "salen como notificaciones web"). The host then renders the branded
- * Zapdude toast inside the shell window, and when the window is hidden the
- * fallback story stays native.
+ * "salen como notificaciones web"). The host renders the UNIFORM native
+ * toast (Windows WinRT via src/notifier.rs) - the single surface whether
+ * the window is visible or hidden.
  *
  * The original constructor is NOT called, so WebView2's own toast never
  * shows. Permission reads report 'granted' and requestPermission resolves
  * 'granted' so WhatsApp keeps shipping notifications this way.
  *
- * Click support: the host can call window.__zapdudeFireNotificationClick(tag)
- * (it does when the branded toast is clicked) and the stub dispatches the
- * stored onclick handlers, so "click notification -> WhatsApp opens the
- * chat" keeps working with our own surface.
+ * Click support: the host calls window.__zapdudeFireNotificationClick(tag)
+ * and the stub dispatches the stored onclick handlers, so "click
+ * notification -> WhatsApp opens the chat" keeps working with our own
+ * surface.
  *
  * Installed DEFERRED by the beacon poller with its own idempotency flag and
  * try/catch (hooking at document-start once broke WhatsApp's startup; the
@@ -41,9 +41,35 @@
     }
 
     function emit(kind, title, options) {
+        // Missed-call payloads carry the caller's bare HANDLE as the
+        // title (WhatsApp's own choice). The ring relay teaches us the
+        // handle -> display-name pairing just before the missed call
+        // arrives, so the toast gets the human identity.
+        var shownTitle = String(title || '');
+        try {
+            var map = window.__zapdudeCallerMap;
+            if (map && shownTitle.charAt(0) === '@') {
+                var mapped = map[shownTitle];
+                if (!mapped) {
+                    // Stored keys may carry fused trailing text from the
+                    // ring surface nodes ("@ldpfpeVoice") - a title of
+                    // "@ldpfpe" prefix-matches such a key.
+                    for (var key in map) {
+                        if (Object.prototype.hasOwnProperty.call(map, key)
+                            && key.indexOf(shownTitle) === 0) {
+                            mapped = map[key];
+                            break;
+                        }
+                    }
+                }
+                if (mapped && mapped.length >= 2 && mapped.length <= 40) {
+                    shownTitle = mapped;
+                }
+            }
+        } catch (_mapError) {}
         var payload = {
             kind: kind,
-            title: String(title || ''),
+            title: shownTitle,
             body: String((options && options.body) || ''),
             icon: String((options && options.icon) || ''),
             tag: String((options && options.tag) || ''),

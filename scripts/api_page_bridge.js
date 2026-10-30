@@ -418,18 +418,47 @@
                         return { ok: false, error: 'no_open_chat' };
                     }
                     var wantVideo = String(mode || 'voice') === 'video';
-                    var pattern = wantVideo
-                        ? /videollamada|video\s*call/i
-                        : /llamada\s*de\s*voz|voice\s*call|llamar/i;
                     var buttons = header.querySelectorAll('button');
+                    // Locale-aware, TWO-PASS so markup drift cannot strand the
+                    // endpoint (real live capture, 2026-10-30: this deployment
+                    // labels the voice button just "Llamada" - the older
+                    // "Llamada de voz" / "Voice call" wordings still get the
+                    // strict pass first; the strict list never matches the
+                    // video button even in voice mode).
+                    var isVideoLabel = function (label) {
+                        return /videollamada|video\s*call/i.test(label);
+                    };
+                    var isVoiceStrict = function (label) {
+                        return /^llamada(\s+de\s+(voz|audio))?$|^llamar\b|^voice\s*call\b|^llamada\s*de\s*voz/i.test(label);
+                    };
+                    var isVoiceLenient = function (label) {
+                        return /llamad|^llamar|call/i.test(label) && !/video/i.test(label);
+                    };
+                    // First pass: exact label matches only.
+                    var pass = wantVideo ? isVideoLabel : isVoiceStrict;
                     for (var index = 0; index < buttons.length; index++) {
-                        var label = String(buttons[index].getAttribute('aria-label') || '');
-                        if (pattern.test(label)) {
+                        var label = String(buttons[index].getAttribute('aria-label') || '').trim();
+                        if (label && pass(label)) {
                             buttons[index].click();
                             return { ok: true, clicked: label.slice(0, 32) };
                         }
                     }
-                    return { ok: false, error: 'call_button_not_found' };
+                    // Second pass (voice only): tolerate drift by taking the
+                    // first call-ish label that is definitely not the video
+                    // button.
+                    if (!wantVideo) {
+                        for (var second = 0; second < buttons.length; second++) {
+                            var alt = String(buttons[second].getAttribute('aria-label') || '').trim();
+                            if (alt && isVoiceLenient(alt)) {
+                                buttons[second].click();
+                                return { ok: true, clicked: alt.slice(0, 32), degraded: true };
+                            }
+                        }
+                    }
+                    var labels = Array.prototype.map.call(buttons, function (b) {
+                        return String(b.getAttribute('aria-label') || '');
+                    }).filter(Boolean);
+                    return { ok: false, error: 'call_button_not_found', labels: labels.slice(0, 6) };
                 } catch (error) {
                     return emitError('startCall', error);
                 }

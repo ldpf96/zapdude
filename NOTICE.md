@@ -23,12 +23,35 @@ License: **GNU Affero General Public License v3.0** (see `LICENSE`).
   Zapdude - or serving a modified version to others over a network -
   shares the corresponding source.
 
+## Third-party assets and attributions
+
+- **Service icons in the shell (rail tiles, add-account menu, welcome
+  buttons).** The WhatsApp and Messenger glyphs are taken from
+  [Simple Icons](https://simpleicons.org)
+  ([github.com/simple-icons/simple-icons](https://github.com/simple-icons/simple-icons),
+  version 13): CC0 1.0 Universal (public domain dedication). The icons are
+  used to IDENTIFY which chat web each account embeds (nominative use in a
+  third-party desktop client). They remain trademarks of their owners and
+  this does not imply endorsement. More icons will join this same CC0
+  source as new services are embedded.
+- **Runtime dependencies.** All Rust crates (Tauri 2, wry, axum, tokio,
+  ureq, `tauri-winrt-notification`, serde, sha2/hmac/base64 and the rest
+  of the dependency graph) keep their own license terms and are listed
+  with versions in `Cargo.toml` / `Cargo.lock`; their notices apply as
+  shipped by `cargo`.
+- **Embedded web services.** WhatsApp Web, Messenger and any other web
+  chat the app embeds are the property of their operators; Zapdude
+  displays them inside a webview and automates nothing beyond the page
+  surface the site itself renders.
+
 ## Trademark and ownership
 
 - Zapdude is an independent project and is **not affiliated with,
-  endorsed or sponsored by** WhatsApp or Meta Platforms, Inc.
-  **WhatsApp** is a trademark of Meta Platforms, Inc. The app only
-  displays your own WhatsApp Web session; your data stays yours.
+  endorsed or sponsored by** WhatsApp, Messenger, Facebook, Meta
+  Platforms, Inc., or any other chat-service operator. The names
+  **WhatsApp**, **Messenger** and **Facebook** are trademarks of their
+  respective owners; the app only displays embedded views of your own
+  sessions, and your data stays yours.
 - **ZapZap** is and remains the project of Rafael Tosta.
 
 ## License

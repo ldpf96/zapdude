@@ -120,10 +120,24 @@ environment, so the session and cookies are the same one the page uses.
 - Each account runs its own WebView2 profile at
   `%APPDATA%\app.zapzap.desktop\webview\<account-id>` so sessions,
   cookies and storage never mix.
+- Each account carries a `service` (config, `AccountConfig.service`):
+  which REAL web chat the view embeds - `whatsapp` -> web.whatsapp.com,
+  `facebook` -> messenger.com (chat-only surface; the Facebook login,
+  including 2FA, happens inside the embedded view, mirroring how the
+  WhatsApp QR works). The page is always the integration target; every
+  service has its own adaptive page bridge under the same
+  `window.__zapdudeApiV1` contract (`scripts/facebook_bridge.js`),
+  selector candidates are lists, reads degrade into structured fields
+  and the local API never breaks on markup drift.
+- API surface stays service-agnostic for reads (status, chats, events,
+  tagged additionally with `service`); WhatsApp-only flows (send,
+  open-chat, calls) answer `unsupported_for_service` on other services
+  until their page bridges are proven against a real login.
 - Deleting an account removes its webview AND wipes its profile folder
   (best effort); the shell falls back to the next account or the
-  welcome screen (the welcome screen is the only place with an explicit
-  "Add account" button; nothing auto-creates empty accounts).
+  welcome screen (the welcome screen carries explicit add buttons per
+  service, and the rail's "+" opens the mini service-picker window;
+  nothing auto-creates empty accounts).
 - Renames are metadata only: ids are stable forever.
 
 ## Tray and window behavior

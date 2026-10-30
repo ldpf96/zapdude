@@ -102,6 +102,12 @@
       box-shadow: 0 0 0 1px rgba(46,224,111,0.18), 0 2px 14px rgba(46,224,111,0.22);
     }
     .avatar.active svg { opacity: 1; color: var(--accent); }
+    /* Service identity: each account wears its chat web's REAL logo and
+     * brand color (WhatsApp green / Messenger blue; both simple-icons,
+     * CC0). The Zapdude bolt stays only on the brand logo (top of rail). */
+    .avatar.svc-wa svg { color: #25d366; }
+    .avatar.svc-fb svg { color: #00b2ff; }
+    .avatar.svc-fb.active svg { color: #33c0ff; }
     .avatar.armed {
       background: rgba(255, 95, 86, 0.16);
       border-color: rgba(255, 95, 86, 0.6);
@@ -119,6 +125,7 @@
     .dot.logged { background: var(--accent); }
     .dot.qr { background: var(--warn); }
     .dot.detecting { background: #5f7a70; }
+    .dot.err { background: var(--danger); }
 
     .add-btn {
       background: var(--tile);
@@ -128,6 +135,13 @@
     .add-btn svg { width: 18px; height: 18px; }
     .add-btn:hover { background: var(--accent-soft); border-color: rgba(46,224,111,0.7); transform: translateY(-1px); }
     .add-btn:disabled { opacity: 0.45; cursor: wait; transform: none; }
+
+    /* ---- "+" hover trigger ----
+       The horizontal menu is a NEIGHBOR webview (the 76px rail viewport
+       clips anything painted past its edge - proved live with an on-screen
+       marker). Hovering the + opens the strip anchored beside the tile;
+       see the host endpoints (window.rs) for the open/close choreography. */
+    .add-wrap { position: relative; flex-shrink: 0; margin-bottom: 16px; }
 
     .tooltip {
       position: absolute; left: 58px; top: 50%; transform: translateY(-50%) translateX(-4px);
@@ -182,6 +196,14 @@
       <symbol id="i-chevdown" viewBox="0 0 24 24">
         <path fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/>
       </symbol>
+      <symbol id="i-fb" viewBox="0 0 24 24">
+        <!-- Messenger logo (simple-icons, CC0) -->
+        <path fill="currentColor" d="M.001 11.639C.001 4.949 5.241 0 12.001 0S24 4.95 24 11.639c0 6.689-5.24 11.638-12 11.638-1.21 0-2.38-.16-3.47-.46a.96.96 0 00-.64.05l-2.39 1.05a.96.96 0 01-1.35-.85l-.07-2.14a.97.97 0 00-.32-.68A11.39 11.389 0 01.002 11.64zm8.32-2.19l-3.52 5.6c-.35.53.32 1.139.82.75l3.79-2.87c.26-.2.6-.2.87 0l2.8 2.1c.84.63 2.04.4 2.6-.48l3.52-5.6c.35-.53-.32-1.13-.82-.75l-3.79 2.87c-.25.2-.6.2-.86 0l-2.8-2.1a1.8 1.8 0 00-2.61.48z"/>
+      </symbol>
+      <symbol id="i-wa" viewBox="0 0 24 24">
+        <!-- WhatsApp logo (simple-icons, CC0) -->
+        <path fill="currentColor" d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+      </symbol>
     </defs>
   </svg>
 
@@ -196,6 +218,12 @@
 
   <div class="rail-scroll" id="scroll">
     <div id="rail"></div>
+  </div>
+
+  <!-- The "+" lives OUTSIDE the scroll area so it is PINNED near the rail's
+       bottom edge (a 14px air gap keeps it from hugging the frame - the
+       user's aesthetic note; the strip slot in window.rs moves with it). -->
+  <div class="add-wrap" id="addWrap">
     <button class="add-btn" id="addBtn">
       <svg class="icon"><use href="#i-plus"/></svg>
       <span class="tooltip">Add account</span>
@@ -260,6 +288,15 @@
     }
 
     // Incremental DOM update (no innerHTML rebuild = no flicker on polls).
+    function serviceGlyph(a) {
+      return a.service === "facebook" ? "#i-fb" : "#i-wa";
+    }
+    function serviceLabel(a) {
+      return a.service === "facebook" ? "Facebook" : "WhatsApp";
+    }
+    function serviceName(a) {
+      return a.service === "facebook" ? "Facebook chat" : "WhatsApp";
+    }
     function renderRail() {
       const byId = new Map();
       for (const a of accounts) {
@@ -274,12 +311,28 @@
       accounts.forEach((a, index) => {
         let el = rail.children[index];
         const isArmed = armedId === a.id;
-        const state = a.session_state === "logged_in" ? "logged" : a.session_state === "scan_qr" ? "qr" : "detecting";
-        const stateLabel = a.session_state === "logged_in" ? "connected" : a.session_state === "scan_qr" ? "waiting for QR" : "loading";
+        // Honest dot semantics (the user's spec): green = connected,
+        // yellow = the account needs the human (QR / sign in), red = a
+        // real page problem, grey = unknown / starting / offline-ish.
+        // The dot used to ROTATE green/grey on every poll: the session
+        // cache expired after 2.5s and the UI fell back to "detecting"
+        // until the refresh landed - fixed host-side (stale-while-
+        // revalidate), the dot now keeps the last honest color.
+        const state =
+          a.session_state === "logged_in" ? "logged"
+          : (a.session_state === "scan_qr" || a.session_state === "needs_login") ? "qr"
+          : a.session_state === "page_error" ? "err"
+          : "detecting";
+        const stateLabel =
+          a.session_state === "logged_in" ? "connected"
+          : a.session_state === "scan_qr" ? "waiting for QR"
+          : a.session_state === "needs_login" ? "waiting for sign in"
+          : a.session_state === "page_error" ? "connection problem"
+          : "loading";
         if (!el || el.dataset.id !== a.id) {
           el = document.createElement("div");
           el.dataset.id = a.id;
-          el.innerHTML = `<svg class="icon"><use href="#i-bolt"/></svg>` +
+          el.innerHTML = `<svg class="icon"><use href="#i-wa"/></svg>` +
             `<span class="dot"></span>` +
             `<span class="tooltip"></span>`;
           el.onclick = async () => {
@@ -300,11 +353,12 @@
           };
           rail.insertBefore(el, rail.children[index] || null);
         }
-        el.className = "avatar" + (a.active ? " active" : "") + (isArmed ? " armed" : "");
-        el.querySelector("use").setAttribute("href", isArmed ? "#i-x" : "#i-bolt");
+        el.className = "avatar svc-" + (a.service === "facebook" ? "fb" : "wa") +
+          (a.active ? " active" : "") + (isArmed ? " armed" : "");
+        el.querySelector("use").setAttribute("href", isArmed ? "#i-x" : serviceGlyph(a));
         el.querySelector(".dot").className = "dot " + state;
         const tip = el.querySelector(".tooltip");
-        tip.textContent = isArmed ? "Click again to delete" : `${a.label} - ${stateLabel}`;
+        tip.textContent = isArmed ? "Click again to delete" : `${a.label} - ${serviceName(a)} - ${stateLabel}`;
       });
     }
 
@@ -323,18 +377,32 @@
       try { await api("/api/ui/drawer", { method: "POST" }); } catch (e) { console.error(e); }
     };
 
-    addBtn.onclick = async (ev) => {
+    // "+" trigger = CLICK (the user's preference over hover-opening).
+    // The strip opens anchored beside the + tile (host-side, drawer-style
+    // webview born full-size then slotted). Dismissal: clicking + again
+    // (toggle), a rail click outside the wrapper, Esc, picking a service,
+    // leaving the strip itself, or the soft-close when the cursor exits
+    // the + WITHOUT entering the strip (the strip's touch pings cancel
+    // it, so a 4px system gap never kills the menu mid-travel).
+    const addWrap = document.getElementById("addWrap");
+    addBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
       disarm();
-      const btn = ev.currentTarget;
-      btn.disabled = true;
-      try {
-        await api("/api/accounts", { method: "POST" });
-        await loadRail();
-        // Keep the fresh (+) button just below the newest account.
-        scroll.scrollTop = scroll.scrollHeight;
-      } catch (e) { console.error(e); }
-      btn.disabled = false;
-    };
+      api("/api/ui/picker/toggle", { method: "POST" }).catch(() => {});
+    });
+    addWrap.addEventListener("mouseleave", () => {
+      api("/api/ui/picker/soft-close", { method: "POST" }).catch(() => {});
+    });
+    document.addEventListener("click", (ev) => {
+      if (!addWrap.contains(ev.target)) {
+        api("/api/ui/picker/hide", { method: "POST" }).catch(() => {});
+      }
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        api("/api/ui/picker/hide", { method: "POST" }).catch(() => {});
+      }
+    });
 
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") disarm(); });
 

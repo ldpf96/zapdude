@@ -59,16 +59,37 @@ impl ApiConfig {
     }
 }
 
-/// One WhatsApp account: stable id, human label, enabled flag.
+/// One chat account: stable id, human label, enabled flag, service.
 ///
 /// `id` is the persisted identity (must survive label edits); `label` is
-/// freely editable and shown in the tray and API outputs.
+/// freely editable and shown in the tray and API outputs. `service` selects
+/// the embedded web interface each account's webview loads (WhatsApp Web,
+/// Facebook chat / Messenger). Old configs (without the field) load as
+/// WhatsApp - the field can never break existing installs.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default, rename_all = "camelCase")]
 pub struct AccountConfig {
     pub id: String,
     pub label: String,
     pub enabled: bool,
+    pub service: String,
+}
+
+/// Known chat silos. A new embedding joins this list (add the const, the
+/// URL and its page bridge - nothing else needs to change); anything else
+/// normalizes to WhatsApp so a typo or legacy file never breaks loading.
+pub const SERVICE_WHATSAPP: &str = "whatsapp";
+pub const SERVICE_FACEBOOK: &str = "facebook";
+pub const KNOWN_SERVICES: [&str; 2] = [SERVICE_WHATSAPP, SERVICE_FACEBOOK];
+
+/// Normalize a service name defensively (whitelist; WhatsApp fallback).
+pub fn sanitize_service(raw: &str) -> String {
+    let cleaned = raw.trim().to_ascii_lowercase();
+    if KNOWN_SERVICES.contains(&cleaned.as_str()) {
+        cleaned
+    } else {
+        SERVICE_WHATSAPP.to_string()
+    }
 }
 
 impl Default for AccountConfig {
@@ -77,6 +98,7 @@ impl Default for AccountConfig {
             id: "default".to_string(),
             label: "default".to_string(),
             enabled: true,
+            service: SERVICE_WHATSAPP.to_string(),
         }
     }
 }
@@ -96,6 +118,7 @@ fn sanitize_accounts(raw: Vec<AccountConfig>) -> Vec<AccountConfig> {
     let mut result = Vec::new();
     for mut account in raw {
         account.id = sanitize_account_id(&account.id);
+        account.service = sanitize_service(&account.service);
         if account.id.is_empty() || !seen.insert(account.id.clone()) {
             continue; // drop empty or duplicate ids
         }
@@ -373,16 +396,19 @@ mod tests {
                 id: "personal!".into(),
                 label: String::new(),
                 enabled: true,
+                service: " ".into(),
             },
             AccountConfig {
                 id: "work".into(),
                 label: "Work".into(),
                 enabled: false,
+                service: "whatsapp".into(),
             },
             AccountConfig {
                 id: String::new(),
                 label: "dropped".into(),
                 enabled: true,
+                service: "whatsapp".into(),
             },
         ];
         let clean = sanitize_accounts(raw);
@@ -403,5 +429,26 @@ mod tests {
         // one on the next open instead of resurrecting a zombie default.
         let clean = sanitize_accounts(vec![]);
         assert_eq!(clean.len(), 0);
+    }
+
+    #[test]
+    fn service_names_are_whitelisted_with_whatsapp_fallback() {
+        assert_eq!(sanitize_service("  FACEBOOK "), "facebook");
+        assert_eq!(sanitize_service("whatsapp"), "whatsapp");
+        // Unknown/legacy/empty names degrade to WhatsApp (never break).
+        assert_eq!(sanitize_service(""), "whatsapp");
+        assert_eq!(sanitize_service("skype"), "whatsapp");
+    }
+
+    #[test]
+    fn sanitize_accounts_normalizes_service() {
+        let clean = sanitize_accounts(vec![AccountConfig {
+            id: "account-9".to_string(),
+            label: "FB".to_string(),
+            enabled: true,
+            // A typoed future service name must not wedge the config.
+            service: "facebookmessenger".to_string(),
+        }]);
+        assert_eq!(clean[0].service, "whatsapp");
     }
 }

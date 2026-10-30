@@ -3,6 +3,92 @@
 Notable changes to this project are documented here. The format follows
 Keep a Changelog; versioning is SemVer.
 
+## [1.3.0] - 2026-10-30
+
+### Added
+- Multi-service accounts: each account now carries a `service`
+  (`whatsapp` legacy default, `facebook`) that selects the REAL web chat
+  the embedded view loads (WhatsApp Web / the Messenger chat surface).
+  Facebook login (email + password + 2FA) happens INSIDE the view, the
+  same way WhatsApp's QR does. Old configs load unchanged as WhatsApp.
+- Facebook receive-side phase 1 over the local API: `service` field on
+  `/api/accounts`, `/api/status` and on every incoming event; session
+  states `logged_in` / `needs_login` (login form detected) / `detecting`;
+  `status`, `chats` and the event stream are service-agnostic, while the
+  WhatsApp-only operations (`message`, `open-chat`, calls) answer a
+  structured `unsupported_for_service` on other accounts to keep the
+  API contract clean.
+- A new adaptive page bridge for Facebook (`facebook_bridge.js`) under
+  the SAME `window.__zapdudeApiV1` contract: honest degraded reads
+  (multi-strategy selectors, structured results), a document.title
+  unread watcher shipping `title_badge` events, and every entry point
+  guarded so markup drift can never break an endpoint.
+- The service picker: clicking the rail's "+" opens a horizontal brand
+  strip anchored beside the tile (WhatsApp / Messenger logos, real
+  simple-icons CC0 glyphs); it follows the tile, and closes on pick,
+  Esc, outside click or cursor exit.
+- Incoming calls surface as the SAME branded native toast the message
+  notifications use (caller identity via the semantic testid first,
+  avatar pass-through, per-node dedupe), while the caller's own
+  "Calling.../Llamando..." surface stays SILENT (the caller is already
+  in the call; the real capture had produced one bogus toast) and toast
+  titles arrive clean (WhatsApp's "~" presence glyph stripped). The
+  in-page call prompt keeps working with a cosmetic brand-styling pass
+  (rounded card, soft shadow) anchored on its stable testids - CSS only,
+  buttons keep their native pill shape, the stylesheet self-degrades on
+  markup drift.
+- Uniform toast law: every native toast renders at THE SAME SIZE at
+  birth - the icon slot is always occupied (the contact avatar when the
+  payload carries one, the app icon as universal fallback otherwise),
+  titles clamp to one line and bodies to exactly two (short bodies get
+  padded with an invisible non-breaking space), so message, call and
+  status toasts read as one family.
+- Missed-call notifications are fully branded: WhatsApp ships the caller
+  avatar as a huge inline data URL which the flat 4096-char length gate
+  used to reject silently, so the toast rendered bare; the gate now only
+  applies to remote URLs and inline payloads decode up to 300 KB. The
+  missed-call toast also carries the CALLER's human identity: the ring
+  relay learns the handle -> display-name pair at ring time (WhatsApp
+  titles the missed Notification with the bare handle) and the page hook
+  swaps it in.
+- A service-worker guard stops the SQUARE notification: WhatsApp's own
+  worker (web.whatsapp.com/sw.js) raises ring and push notifications
+  from its own realm via `registration.showNotification` - an un-stylable
+  OS bubble the branded pipeline can never touch (the user saw it
+  stacking behind the branded toast). The guard intercepts
+  `navigator.serviceWorker.register` (the original promise still
+  resolves so the page starts normally) and sweeps existing
+  registrations every two seconds; the page-level capture keeps feeding
+  the branded pipeline.
+- A stable-backup practice: `tools/backup-stable.ps1` snapshots the
+  verified dev build (exe + symbols + full source zip + verification
+  manifest) into `backups/stable-dev-<timestamp>/`, keeping the newest
+  twelve.
+
+### Changed
+- Toast anatomy: each notification reads contact (bold) + message, with
+  the contact avatar as a small round icon at the LEFT; the redundant
+  "Zapdude" title and the raw `[account-1]` tag are gone, and clicking
+  opens the account - and now the chat - that produced the notification
+  (the hook's stored onclick handlers get re-dispatched).
+- Rail: real service glyphs with brand colors per account, honest state
+  dot (green = connected, yellow = waiting for QR/sign in, red = page
+  problem, grey = detecting) backed by stale-while-revalidate session
+  caching so the color stops rotating, and the "+" pinned near the
+  rail's bottom edge.
+- The attribution file now credits the third-party assets in use
+  (simple-icons CC0 icons for the embedded services) and carries the
+  trademark wording for WhatsApp, Messenger and Facebook.
+- The "download the desktop app" promo hider now also matches the
+  short Spanish "descarga la app" family of texts (plus `WhatsApp
+  Desktop` variants), keeping its protected-zone guardrails.
+- `/api/call` survives WhatsApp's call-button label drift: the click
+  matches exact labels first ("Llamada", "Llamada de voz", "Voice call",
+  "Llamar") and falls back to the first call-ish label that is not the
+  video button (live diagnostics caught the plain Spanish "Llamada"
+  label leaving the endpoint answering `call_button_not_found`); the
+  failure payload now lists observed labels for the next drift.
+
 ## [1.2.1] - 2026-10-29
 
 ### Added
