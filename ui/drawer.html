@@ -309,6 +309,10 @@
           (by Z.ai), vibe coding style, everything verified on real hardware before
           shipping.</p>
         <p class="desc">Not an official WhatsApp product; not affiliated with WhatsApp or Meta.</p>
+        <div class="updrow" style="display:flex;gap:12px;align-items:center;margin:14px 0 0;">
+          <button class="btn" id="updateBtn" style="margin:0;width:auto;padding:9px 18px;font-size:13px;">Search updates</button>
+          <p class="desc" id="updateMsg" style="margin:0;"></p>
+        </div>
         <p class="mono">https://github.com/ldpf96/zapdude</p>
       </div>
     </div>
@@ -483,11 +487,65 @@
     // Native-app feel: no browser context menu on the shell UI.
     document.addEventListener("contextmenu", (e) => e.preventDefault());
 
+    // ---- Updates (light tier: query the GitHub Releases API once per drawer
+    // open, announce only when a NEWER tag exists; the button always works) ----
+    const GITHUB_LATEST = "https://api.github.com/repos/ldpf96/zapdude/releases/latest";
+    function verCmp(a, b) {
+      const A = String(a || "").split(".");
+      const B = String(b || "").split(".");
+      for (let i = 0; i < 3; i++) {
+        const x = parseInt(A[i], 10) || 0, y = parseInt(B[i], 10) || 0;
+        if (x !== y) return x > y ? 1 : -1;
+      }
+      return 0;
+    }
+    async function currentVersion() {
+      try {
+        return String((await api("/api/healthz")).version || "").trim();
+      } catch (e) { return ""; }
+    }
+    async function checkUpdates(manual) {
+      const btn = $("updateBtn");
+      const msg = $("updateMsg");
+      if (!btn || !msg || btn.disabled) return;
+      btn.disabled = true;
+      if (manual) msg.textContent = "Searching\u2026";
+      try {
+        const res = await fetch(GITHUB_LATEST, { headers: { "Accept": "application/vnd.github+json" } });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const rel = await res.json();
+        // Defensive: the fields come from the network - shape-check before
+        // they touch innerHTML.
+        const tag = String(rel.tag_name || "").replace(/^v/i, "").trim();
+        const url = String(rel.html_url || "");
+        if (!/^\d+(\.\d+){1,3}$/.test(tag) || !/^https:\/\/github\.com\//.test(url)) {
+          throw new Error("bad payload");
+        }
+        const here = await currentVersion();
+        const newer = here ? verCmp(tag, here) > 0 : true;
+        if (newer) {
+          msg.innerHTML = "New version <b>" + esc(tag) + "</b> is out - " +
+            '<a href="' + esc(url) + '" target="_blank" style="color:#4ae176;">Download</a>';
+        } else if (manual) {
+          msg.textContent = "You are up to date (" + here + ")";
+        } else {
+          msg.textContent = "";
+        }
+      } catch (e) {
+        if (manual) msg.textContent = "Could not reach GitHub - check your connection.";
+      }
+      btn.disabled = false;
+    }
+    $("updateBtn").onclick = () => checkUpdates(true);
+
     (async () => {
       await Promise.all([loadPrefs(), load(), refreshAccounts()]);
       // Refresh the accounts list while the drawer is open, INCREMENTALLY:
       // a row being edited keeps its text and focus (see refreshAccounts).
       setInterval(refreshAccounts, 5000);
+      // Quiet one-shot update check once every payload is loaded: it only
+      // ever announces something when a newer release actually exists.
+      setTimeout(() => checkUpdates(false), 2500);
     })();
   </script>
 </body>

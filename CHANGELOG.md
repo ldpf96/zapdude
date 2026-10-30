@@ -3,6 +3,18 @@
 Notable changes to this project are documented here. The format follows
 Keep a Changelog; versioning is SemVer.
 
+## [Unreleased]
+
+### Added
+- The drawer's About card gains a **Search updates** button: the light
+  tier of the auto-update flow. Every drawer open runs one QUIET check
+  against the GitHub Releases API that announces only when a newer tag
+  exists; the button itself answers everything ("Searching…", "New
+  version X is out - Download", "You are up to date", or the offline
+  notice). The running version comes from `/api/healthz` and the
+  announcement links straight to the release page. GitHub payload
+  fields are shape-checked before they ever touch innerHTML.
+
 ## [1.3.1] - 2026-10-31
 
 ### Fixed

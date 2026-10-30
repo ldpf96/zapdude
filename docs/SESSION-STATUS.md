@@ -6,26 +6,23 @@
 > the call/notifications history).
 
 > **STATE OF THE WORLD** (2026-10-31): the repo IS a git repo (main ->
-> origin ldpf96/zapdude); **v1.3.0 is PUBLISHED and LIVE** - GitHub
-> release with 5 CI artifacts (run 41089046316 green, body = release
-> notes, --latest), site updated for 1.3.0 with its own AGPL-3.0
-> LICENSE file (ldpf96.github.io/zapdude-site, commit b8550b9), and the
-> user's PC runs the INSTALLED v1.3.0 (their start-menu-click bug is
-> dead with it). The 2026-10-31 MORNING session fixed the three
-> user-reported cosmetic leaks from their real-call validation: (1)
-> missed-call toasts reuse the clean ring avatar through the new
-> `window.__zapdudeCallerIcon` store (notification_hook swap; no more
-> WhatsApp-badge composite), (2) WhatsApp's v2 empty-state promo card
-> dies by its own testid `intro_panel_v2_title_card`
-> (hide_download_banners), (3) with accounts configured the welcome
-> webview boots as a pure `?splash=1` brand beat - the full
-> "create an account" picker belongs to the no-accounts state only
-> (create_shell gate + welcome.html splash variant + delete-last
-> re-navigation). ALL THREE verified live (frame captures + a real
-> API call cycle: the missed event's icon equals the ring surface's
-> CDN avatar URL). 21/21 tests green. Working tree = v1.3.1 (version
-> bumped in Cargo.toml + tauri.conf.json, CHANGELOG section written);
-> **not pushed/tagged yet - see pending list**.
+> origin ldpf96/zapdude); **v1.3.1 is PUBLISHED and LIVE** - GitHub
+> release with 5 CI artifacts (run 41100488092 green, body = release
+> notes, --latest via gh api), site pointing at the 1.3.1 story
+> (commit 3f4ce88), and the user's PC runs the INSTALLED v1.3.1 built
+> from the REAL CI artifact (SHA256 0C123365...; installed 12:42:48,
+> booted straight into the account, empty state without the promo
+> card). The 1.3.1 content = the three user-reported cosmetic fixes
+> (missed-call icon swap via `window.__zapdudeCallerIcon`, the v2
+> empty-state promo card dead by its testid `intro_panel_v2_title_card`,
+> welcome boots as a pure `?splash=1` brand beat with accounts) - all
+> verified live (frame captures + a real API call cycle: the missed
+> event's icon equals the ring surface's CDN avatar URL). 21/21 tests
+> green. ON MAIN AFTER THE TAG (ships in the next cut): the drawer
+> About card now carries a "Search updates" button - light tier of the
+> auto-updater (quiet once-per-open /releases/latest check announcing
+> only newer tags + a manual full-status check; version from
+> /api/healthz; defensive shape checks; opens the release page).
 
 > Older STATE block (2026-10-30 mid-session, superseded): v1.2.1 is the
 > last PUBLISHED release; the user's PC runs the OLD **v1.2.0** installer
@@ -536,17 +533,16 @@
 
 ## Pending (the NEXT session opens on these)
 
-1. PUBLISH v1.3.1 (tree ready, 2026-10-31 morning; user go-ahead
-   pending - asked): the three post-1.3.0 user-report fixes are in and
-   verified live (missed-call icon swap, empty-state promo kill,
-   welcome splash gate). Flow: commit (English) -> tag `v1.3.1` ->
-   push -> CI -> patch the release body -> install the fresh NSIS on
-   the user's PC (kill running Zapdude first; single-instance mutex).
-2. AUTO-UPDATER (user request, "chicharron"): a Check-for-updates button
-   inside the app querying the GitHub releases endpoint (lightweight:
-   compare versions, notify, open the release page); deeper tier:
-   tauri-plugin-updater with release signing keys for true one-click
-   self-updates.
+1. DONE 2026-10-30 12:56: **v1.3.1 published end-to-end** - commit
+   cacee08 + tag v1.3.1 -> CI 41100488092 GREEN -> release LIVE with 5
+   assets, body = release notes-1.3.1, --latest (gh api confirms
+   releases/latest = v1.3.1); site story pointed at 1.3.1 (3f4ce88);
+   user's PC installed FROM THE CI ARTIFACT (SHA256 0C123365...) and
+   running.
+2. AUTO-UPDATER: LIGHT TIER DONE on main (drawer "Search updates"
+   button, post-tag; ships with the next release). Remaining: the DEEP
+   tier - tauri-plugin-updater with release signing keys for true
+   one-click self-updates.
 3. DONE 2026-10-31: the user's real-call validation passed (one branded
    toast per event, missed-call photo+name, uniform sizes, ring sound
    alive without the service worker) - the two cosmetic leaks it
